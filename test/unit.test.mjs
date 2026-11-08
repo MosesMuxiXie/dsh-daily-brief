@@ -6,7 +6,7 @@ import { guessJsonMapping, getByPath } from '../lib/engine/collect/json.js';
 import { applyAiPolish, buildBriefing } from '../lib/engine/render/model.js';
 import { renderBriefingHtml } from '../lib/engine/render/html.js';
 import { defaultConfig, mergeConfig, personaFor } from '../lib/engine/config.js';
-import { splitInputs, guessMailSettings, probeMany } from '../lib/engine/import/detect.js';
+import { splitInputs, guessMailSettings, probeMany, normalizeCalendarLink, calendarLike } from '../lib/engine/import/detect.js';
 import { relativeTime } from '../lib/engine/text.js';
 
 test('parses RSS 2.0 and Atom without namespace assumptions', () => {
@@ -288,3 +288,13 @@ test('managebac domains on .cn and school subdomains are recognized', async () =
   }
 });
 
+
+test('calendar subscription links survive webcal and are recognized as ICS', () => {
+  assert.equal(normalizeCalendarLink('webcal://example.com/cal.ics'), 'https://example.com/cal.ics');
+  assert.equal(normalizeCalendarLink(' WEBCAL://example.com/cal.ics'), 'https://example.com/cal.ics');
+  assert.equal(normalizeCalendarLink('https://example.com/cal.ics'), 'https://example.com/cal.ics');
+  assert.ok(calendarLike('https://example.com/team.ics', '/team.ics'));
+  assert.ok(calendarLike('https://calendar.google.com/calendar/ical/a/basic.ics', '/calendar/ical/a/basic.ics'));
+  assert.ok(calendarLike('https://example.com/ical/feed', '/ical/feed'));
+  assert.ok(!calendarLike('https://example.com/feed.xml', '/feed.xml'));
+});

@@ -76,7 +76,7 @@ window.__ModuleLoader__.load({
       .dbp-grid > * { margin-bottom:0; min-width:0; }
       @media (max-width: 920px) { .dbp-grid { grid-template-columns:minmax(0,1fr); } }
       .dbp-group-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:16px; }
-      .dbp-hint { margin:7px 0 0; color:var(--dsw-alias-label-tertiary); font-size:11.5px; line-height:1.6; }
+      .dbp-hint { margin:10px 0 2px; padding:10px 12px; border:1px solid rgba(255,255,255,.07); border-radius:10px; background:#101013; color:var(--dsw-alias-label-secondary,#b9b9c3); font-size:12px; line-height:1.7; }
       .dbp-src-edit { display:flex; gap:8px; align-items:center; margin:6px 0 4px 18px; }
       .dbp-src-edit .dbp-input { flex:1; }
 .dbp-head { display:flex; align-items:center; gap:10px; margin-bottom:20px; }
@@ -929,6 +929,7 @@ window.__ModuleLoader__.load({
             proposal,
           }));
           const fallback = [];
+          const handledLines = new Set();
           const lines = String(text || '').split(/[\n,;，；]+/).map((line) => line.trim()).filter(Boolean);
           for (const line of lines) {
             // Older hosts only know managebac.com; recognize the .cn family here so
@@ -959,15 +960,39 @@ window.__ModuleLoader__.load({
                   preview: { title: 'ManageBac', subtitle: '通知与班级动态', items: [] },
                 },
               });
+              handledLines.add(line);
               continue;
             }
-            if (!/^https?:\/\//i.test(line)) continue;
-            if (detected.some((row) => row.proposal && row.proposal.url === line)) continue;
+            const target = /^webcals?:\/\//i.test(line) ? line.replace(/^webcals?:\/\//i, 'https://') : line;
+            if (!/^https?:\/\//i.test(target)) continue;
+            if (detected.some((row) => row.proposal && row.proposal.url === target)) continue;
             let parsed = null;
-            try { parsed = new URL(line); } catch { continue; }
+            try { parsed = new URL(target); } catch { continue; }
             if (!parsed.hostname) continue;
             const host = parsed.hostname;
-            const serverish = /server|monitor|status|panel|mcs|minecraft|dashboard|console|监控|服务器|后台/i.test(line);
+            const isCalendar = /\.ics($|[?#])/i.test(target) || /\/ical\//i.test(target) || /calendar/i.test(target);
+            if (isCalendar) {
+              fallback.push({
+                key: detected.length + fallback.length,
+                checked: true,
+                label: '日历订阅',
+                section: 'calendar',
+                secret: '',
+                host: '',
+                proposal: {
+                  type: 'ics',
+                  section: 'calendar',
+                  label: '日历订阅',
+                  url: target,
+                  requires: [],
+                  note: '按日历订阅加入。若之后读不到事件，说明这个链接需要登录：请到日历设置里重新复制「订阅链接 / ICS 导出」。',
+                  preview: { title: '日历订阅', subtitle: 'ICS', items: [] },
+                },
+              });
+              handledLines.add(line);
+              continue;
+            }
+            const serverish = /server|monitor|status|panel|mcs|minecraft|dashboard|console|监控|服务器|后台/i.test(target);
             const privateHost = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|::1)$/i.test(host)
               || /^172\.(1[6-9]|2\d|3[01])\./.test(host);
             const section = serverish || privateHost ? 'server' : 'custom';
@@ -982,17 +1007,33 @@ window.__ModuleLoader__.load({
                 type: 'http',
                 section,
                 label: host,
-                url: line,
+                url: target,
                 options: { allowPrivate: privateHost },
                 note: '未识别为订阅，按网页来源加入（记录在线状态与响应时间）。',
               },
             });
+            handledLines.add(line);
           }
           const list = detected.concat(fallback);
           setRows(list);
-          setErrors(result.errors || []);
-          if (list.length === 0) setMessage('没有识别出可添加的来源');
-          else if (fallback.length > 0) setMessage(`已按网页来源补上 ${fallback.length} 个链接，确认后点「加入」`);
+          const handled = Array.from(handledLines).map((line) => line.slice(0, 24));
+          const nextErrors = (Array.isArray(result.errors) ? result.errors : []).filter(
+            (entry) => !handled.some((line) => String(entry).includes(line)),
+          );
+          if (list.length === 0) {
+            setMessage('没有识别出可添加的来源');
+            if (nextErrors.length === 0) nextErrors.push('请粘贴网址、邮箱地址，或「地址:端口」；日历请用以 .ics 结尾的订阅链接。');
+          } else if (fallback.length > 0) {
+            const calendarOnly = fallback.every((row) => row.section === 'calendar' || row.type === 'ics');
+            setMessage(
+              calendarOnly
+                ? `已识别 ${list.length} 个日历订阅，确认后点「加入」`
+                : `已识别 ${list.length} 个来源（其中 ${fallback.length} 个按链接类型补上），确认后点「加入」`,
+            );
+          } else {
+            setMessage('');
+          }
+          setErrors(nextErrors);
         } catch (err) {
           setErrors([err.message || String(err)]);
         } finally {
@@ -1051,6 +1092,15 @@ window.__ModuleLoader__.load({
           sub: '粘贴网址、邮箱地址或服务器地址，每行一个。支持订阅源、网页、日历 ICS、邮箱（IMAP）、ManageBac（.com / .cn）、飞书、Steam 与 Minecraft。',
         },
         locked ? h('div', { className: 'dbp-note' }, 'DSH 主进程还停在旧版插件，重启一次后再添加。') : null,
+        h(
+          'div',
+          { className: 'dbp-hint' },
+          h('div', null, '· 订阅源：网址本身就提供 RSS/Atom（常见 .xml、.rss，或 feed 路径）'),
+          h('div', null, '· 日历：以 .ics 结尾的「订阅链接」（Google 日历 → 设置 → 该日历 → 私密地址 iCal；Outlook / 飞书 / ManageBac 同理）'),
+          h('div', null, '· 服务器：地址:端口（如 play.example.com:25565），或 http(s):// 监控页'),
+          h('div', null, '· 邮箱 / 学校：邮箱地址，或 ManageBac 网页地址（需要登录 Cookie 或 ICS 链接）'),
+          h('div', null, '提示：webcal:// 开头的日历链接会自动按 https:// 处理。'),
+        ),
         h('textarea', {
           className: 'dbp-textarea',
           value: text,
