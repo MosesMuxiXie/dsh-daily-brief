@@ -45,7 +45,14 @@ window.__ModuleLoader__.load({
 
     const CSS = `
 .dbp-root { height:100%; overflow:auto; color-scheme:dark; background:var(--dsw-alias-bg-base,#0e0e12); color:var(--dsw-alias-label-primary,#ececf1); }
-.dbp-page { max-width:760px; margin:0 auto; padding:28px 24px 64px; }
+.dbp-page { max-width:1040px; margin:0 auto; padding:26px 24px 64px; }
+      .dbp-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; align-items:start; margin-bottom:14px; }
+      .dbp-grid > * { margin-bottom:0; min-width:0; }
+      @media (max-width: 920px) { .dbp-grid { grid-template-columns:minmax(0,1fr); } }
+      .dbp-group-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:16px; }
+      .dbp-hint { margin:7px 0 0; color:var(--dsw-alias-label-tertiary); font-size:11.5px; line-height:1.6; }
+      .dbp-src-edit { display:flex; gap:8px; align-items:center; margin:6px 0 4px 18px; }
+      .dbp-src-edit .dbp-input { flex:1; }
 .dbp-head { display:flex; align-items:center; gap:10px; margin-bottom:20px; }
 .dbp-head h1 { margin:0; font-size:19px; font-weight:600; letter-spacing:-.01em; }
 .dbp-head .dbp-sub { color:var(--dsw-alias-label-secondary); font-size:12px; margin-left:2px; }
@@ -504,6 +511,9 @@ window.__ModuleLoader__.load({
         h('div', { className: 'dbp-label' }, '关注范围'),
         h(
           'div',
+          { className: 'dbp-group-grid' },
+        h(
+          'div',
           { className: 'dbp-group' },
           h('div', { className: 'dbp-group-title' }, h('span', null, 'X 上的 AI 账号')),
           h(Chips, {
@@ -539,6 +549,7 @@ window.__ModuleLoader__.load({
             locked,
           }),
           locked ? null : h(AddRow, { placeholder: '地址:端口 或 http(s):// 监控页', onAdd: (value) => onAdd('minecraft', value) }),
+        ),
         ),
       );
     }
@@ -1062,13 +1073,29 @@ window.__ModuleLoader__.load({
                   }))
                 : null,
               need.includes('cookie')
-                ? h('div', { className: 'dbp-secret' }, h('input', {
-                    className: 'dbp-input',
-                    value: row.secret,
-                    spellCheck: false,
-                    placeholder: '登录 Cookie（也可添加后再填）',
-                    onChange: (event) => patchRow(row.key, { secret: event.target.value }),
-                  }))
+                ? h(
+                    'div',
+                    { className: 'dbp-secret' },
+                    h('input', {
+                      className: 'dbp-input',
+                      value: row.secret,
+                      spellCheck: false,
+                      placeholder: row.proposal.type === 'managebac' ? '登录 Cookie 的值（只填 cookie 后面那段，可不填，添加后也能补）' : '登录 Cookie 的值（也可先留空，添加后在来源里补填）',
+                      onChange: (event) => patchRow(row.key, { secret: event.target.value }),
+                    }),
+                    h(
+                      'div',
+                      { className: 'dbp-hint' },
+                      '怎么取：浏览器登录后按 F12 → Network → 刷新页面 → 点任意一个请求 → 在 Request Headers 里找到 cookie，复制冒号后的整段值。',
+                    ),
+                    row.proposal.type === 'managebac'
+                      ? h(
+                          'div',
+                          { className: 'dbp-hint' },
+                          'ManageBac 也可以不填 Cookie：在学校的 ManageBac「日历 / Calendar」里复制 ICS 订阅链接，粘贴到上面的输入框即可（更像订阅源，也更稳定）。',
+                        )
+                      : null,
+                  )
                 : null,
             ),
           );
@@ -1077,7 +1104,11 @@ window.__ModuleLoader__.load({
     }
 
     function SourcesCard(props) {
-      const { sources, secrets, locked, onAdd, onTest, onToggle, onRemove } = props;
+      const { sources, secrets, locked, onAdd, onTest, onToggle, onRemove, onSecret } = props;
+      const [edit, setEdit] = useState(null);
+      const [value, setValue] = useState('');
+      const [busy, setBusy] = useState(false);
+      const [err, setErr] = useState('');
       const list = Array.isArray(sources) ? sources : [];
       if (list.length === 0) return null;
       const secretFor = (source) => (secrets && secrets.sources ? secrets.sources[source.id] || {} : {});
@@ -1102,31 +1133,85 @@ window.__ModuleLoader__.load({
               h('div', { className: 'dbp-src-group-name' }, SECTION_LABEL[sectionId] || sectionId),
               group.map((source) => {
                 const status = secretFor(source);
-                const missing =
-                  source.type === 'imap' && status.password === false
-                    ? '未填密码'
-                    : (source.type === 'page' || source.type === 'managebac') && status.cookie === false
-                      ? '未填 Cookie'
-                      : '';
+                const needPassword = source.type === 'imap' && status.password === false;
+                const needCookie = (source.type === 'page' || source.type === 'managebac') && status.cookie === false;
+                const field = needPassword ? 'password' : needCookie ? 'headers' : '';
+                const editing = Boolean(edit && edit.id === source.id);
                 return h(
                   'div',
-                  { className: 'dbp-src-row', key: source.id },
-                  h('span', { className: `dbp-dot${source.enabled === false ? ' bad' : ''}` }),
-                  h('span', { className: 'dbp-src-name', title: source.url || source.label }, source.label || source.type),
-                  h('span', { className: 'dbp-src-type' }, TYPE_LABEL[source.type] || source.type),
-                  missing ? h('span', { className: 'dbp-src-flag' }, missing) : null,
+                  { className: 'dbp-src-item', key: source.id },
                   h(
                     'div',
-                    { className: 'dbp-src-actions' },
-                    h(Btn, { variant: 'ghost', onClick: () => onTest(source), title: '立即抓取一次' }, '测试'),
-                    h(Toggle, {
-                      checked: source.enabled !== false,
-                      disabled: locked,
-                      onChange: (value) => onToggle(source, value),
-                      title: source.enabled === false ? '启用' : '停用',
-                    }),
-                    h(Btn, { variant: 'ghost', onClick: () => onRemove(source), disabled: locked, title: '移除' }, '×'),
+                    { className: 'dbp-src-row' },
+                    h('span', { className: `dbp-dot${source.enabled === false ? ' bad' : ''}` }),
+                    h('span', { className: 'dbp-src-name', title: source.url || source.label }, source.label || source.type),
+                    h('span', { className: 'dbp-src-type' }, TYPE_LABEL[source.type] || source.type),
+                    needPassword ? h('span', { className: 'dbp-src-flag' }, '未填密码') : null,
+                    needCookie ? h('span', { className: 'dbp-src-flag' }, '未填 Cookie') : null,
+                    h(
+                      'div',
+                      { className: 'dbp-src-actions' },
+                      field
+                        ? h(
+                            Btn,
+                            {
+                              variant: 'ghost',
+                              disabled: locked,
+                              onClick: () => {
+                                setEdit({ id: source.id, field });
+                                setValue('');
+                                setErr('');
+                              },
+                            },
+                            '补填',
+                          )
+                        : null,
+                      h(Btn, { variant: 'ghost', onClick: () => onTest(source), title: '立即抓取一次' }, '测试'),
+                      h(Toggle, {
+                        checked: source.enabled !== false,
+                        disabled: locked,
+                        onChange: (enabled) => onToggle(source, enabled),
+                        title: source.enabled === false ? '启用' : '停用',
+                      }),
+                      h(Btn, { variant: 'ghost', onClick: () => onRemove(source), disabled: locked, title: '移除' }, '×'),
+                    ),
                   ),
+                  editing
+                    ? h(
+                        'div',
+                        { className: 'dbp-src-edit' },
+                        h('input', {
+                          className: 'dbp-input',
+                          value,
+                          spellCheck: false,
+                          placeholder: edit.field === 'headers' ? '粘贴 cookie 的值（F12 → Network → 请求头里的 cookie）' : '邮箱密码或授权码',
+                          onChange: (event) => setValue(event.target.value),
+                        }),
+                        h(
+                          Btn,
+                          {
+                            variant: 'primary',
+                            disabled: busy,
+                            onClick: async () => {
+                              setBusy(true);
+                              setErr('');
+                              try {
+                                await onSecret(source, edit.field, value);
+                                setEdit(null);
+                                setValue('');
+                              } catch (error) {
+                                setErr(error.message || String(error));
+                              } finally {
+                                setBusy(false);
+                              }
+                            },
+                          },
+                          busy ? '保存中…' : '保存',
+                        ),
+                        h(Btn, { onClick: () => { setEdit(null); setValue(''); setErr(''); } }, '取消'),
+                        err ? h('span', { className: 'dbp-modal-err' }, err) : null,
+                      )
+                    : null,
                 );
               }),
             );
@@ -1134,7 +1219,7 @@ window.__ModuleLoader__.load({
           h(
             'div',
             { className: 'dbp-line', style: { borderBottom: 0, paddingBottom: 0 } },
-            h('div', { className: 'dbp-line-hint' }, '邮箱、ManageBac、飞书等登录类来源，可以在添加时直接填密码或 Cookie。'),
+            h('div', { className: 'dbp-line-hint' }, '登录类来源（邮箱 / ManageBac / 飞书）会出现「未填 Cookie」提示，点该行的「补填」粘贴登录 Cookie 即可；ManageBac 也可以改用日历 ICS 订阅链接。'),
             h('div', { className: 'dbp-line-spacer' }),
             h(Btn, { variant: 'ghost', onClick: onAdd, disabled: locked }, '添加来源'),
           ),
@@ -1342,6 +1427,20 @@ window.__ModuleLoader__.load({
         [flashWith],
       );
 
+      const saveSecret = useCallback(
+        async (source, field, raw) => {
+          const value = String(raw || '').trim();
+          if (value === '') throw new Error(field === 'headers' ? '先粘贴 Cookie' : '先填密码');
+          if (staleRef.current) throw new Error('先重启一次 DSH，再保存登录信息');
+          const payload = field === 'headers' && !value.startsWith('{') ? JSON.stringify({ cookie: value }) : value;
+          await api('/secret', { sourceId: source.id, field, value: payload });
+          const next = await api('/state');
+          setState(next);
+          flashWith(field === 'headers' ? `${source.label || '来源'}：Cookie 已保存` : `${source.label || '来源'}：密码已保存`);
+        },
+        [flashWith],
+      );
+
       const removeSource = useCallback(
         async (id) => {
           if (staleRef.current) {
@@ -1429,7 +1528,28 @@ window.__ModuleLoader__.load({
                 '面板已是新版，但 DSH 主进程还停在旧版插件：重启一次 DSH 后，人设卡片、IP/监控页来源和桌面弹窗才会真正生效。',
               )
             : null,
-          h(StyleCard, { config, onSave: (patch) => saveDebounced(patch), locked: stale }),
+          h(
+            'div',
+            { className: 'dbp-grid' },
+            h(StyleCard, { config, onSave: (patch) => saveDebounced(patch), locked: stale }),
+            h(RhythmCard, {
+              config,
+              onSave: (patch) => saveDebounced(patch),
+              onTestPopup: async () => {
+                if (staleRef.current) {
+                  flashWith('先重启一次 DSH，桌面弹窗才能启用', 'err');
+                  return;
+                }
+                try {
+                  const result = await api('/popup', {}, 30000);
+                  if (!result.ok) throw new Error(result.error || '打不开窗口');
+                  flashWith(result.mode === 'app' ? '弹窗已出现' : result.message || '已打开');
+                } catch (err) {
+                  flashWith(err.message || String(err), 'err');
+                }
+              },
+            }),
+          ),
           h(FocusCard, {
             sources: state.sources || [],
             onAdd: addSource,
@@ -1437,33 +1557,21 @@ window.__ModuleLoader__.load({
             locked: stale,
             onPickSteam: caps.includes('steamlib') ? () => setSteamOpen(true) : null,
           }),
-          h(SourcesCard, {
-            sources: state.sources || [],
-            secrets: state.secrets,
-            locked: stale,
-            onAdd: () => setAddOpen(true),
-            onTest: testSource,
-            onToggle: toggleSource,
-            onRemove: removeSource,
-          }),
-          h(RhythmCard, {
-            config,
-            onSave: (patch) => saveDebounced(patch),
-            onTestPopup: async () => {
-              if (staleRef.current) {
-                flashWith('先重启一次 DSH，桌面弹窗才能启用', 'err');
-                return;
-              }
-              try {
-                const result = await api('/popup', {}, 30000);
-                if (!result.ok) throw new Error(result.error || '打不开窗口');
-                flashWith(result.mode === 'app' ? '弹窗已出现' : result.message || '已打开');
-              } catch (err) {
-                flashWith(err.message || String(err), 'err');
-              }
-            },
-          }),
-          h(HistoryCard, { briefings, onOpen: popup }),
+          h(
+            'div',
+            { className: 'dbp-grid' },
+            h(SourcesCard, {
+              sources: state.sources || [],
+              secrets: state.secrets,
+              locked: stale,
+              onAdd: () => setAddOpen(true),
+              onTest: testSource,
+              onToggle: toggleSource,
+              onRemove: removeSource,
+              onSecret: saveSecret,
+            }),
+            h(HistoryCard, { briefings, onOpen: popup }),
+          ),
           h(AdvancedCard, { state, onOpenFolder: openFolder, onSave: (patch) => save(patch, { quiet: true }) }),
           task && task.installed === false && schedule.enabled !== false
             ? h('div', { className: 'dbp-warn' }, '计划任务尚未安装，保存一次时间设置即可重试。')
