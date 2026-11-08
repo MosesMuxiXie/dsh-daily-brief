@@ -72,7 +72,7 @@
 | --- | --- |
 | `you@gmail.com`、`me@school.edu` | 邮箱（IMAP）。Gmail 用应用专用密码；学校邮箱识别不出服务器时会多出一个 IMAP 服务器输入框 |
 | `https://…/feed.xml`、`.ics`、任意网页 | 订阅源 / 日历 / 网页抓取（可加关键词过滤） |
-| `https://www.managebac.com/...` | ManageBac 通知（需要登录 Cookie，或日历订阅链接） |
+| `https://www.managebac.com/...`、`https://…managebac.cn/...` | ManageBac 通知（.com / .cn 及学校子域；需要登录 Cookie，或日历订阅链接） |
 | `https://…feishu.cn/docx|wiki|calendar/...` | 飞书文档 / 知识库 / 日历；前端渲染抓不到时建议用 ICS 订阅 |
 | `http://status.example.com/` | 服务器监控来源 |
 | `10.0.0.5:9000`、`192.168.1.20:8123` | 同时给出 Minecraft 与 HTTP 监控两个候选，自己勾选 |
