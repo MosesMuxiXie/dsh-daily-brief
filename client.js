@@ -754,7 +754,7 @@ window.__ModuleLoader__.load({
         setMessage('');
         try {
           const result = await api('/probe', { text }, 120000);
-          const list = (result.results || []).map((proposal, index) => ({
+          const detected = (result.results || []).map((proposal, index) => ({
             key: index,
             checked: proposal.ok !== false && !requiresOf(proposal).includes('microsoft'),
             label: proposal.label || '',
@@ -763,9 +763,41 @@ window.__ModuleLoader__.load({
             host: '',
             proposal,
           }));
+          const fallback = [];
+          const lines = String(text || '').split(/[\n,;，；]+/).map((line) => line.trim()).filter(Boolean);
+          for (const line of lines) {
+            if (!/^https?:\/\//i.test(line)) continue;
+            if (detected.some((row) => row.proposal && row.proposal.url === line)) continue;
+            let parsed = null;
+            try { parsed = new URL(line); } catch { continue; }
+            if (!parsed.hostname) continue;
+            const host = parsed.hostname;
+            const serverish = /server|monitor|status|panel|mcs|minecraft|dashboard|console|监控|服务器|后台/i.test(line);
+            const privateHost = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|::1)$/i.test(host)
+              || /^172\.(1[6-9]|2\d|3[01])\./.test(host);
+            const section = serverish || privateHost ? 'server' : 'custom';
+            fallback.push({
+              key: detected.length + fallback.length,
+              checked: true,
+              label: host,
+              section,
+              secret: '',
+              host: '',
+              proposal: {
+                type: 'http',
+                section,
+                label: host,
+                url: line,
+                options: { allowPrivate: privateHost },
+                note: '未识别为订阅，按网页来源加入（记录在线状态与响应时间）。',
+              },
+            });
+          }
+          const list = detected.concat(fallback);
           setRows(list);
           setErrors(result.errors || []);
           if (list.length === 0) setMessage('没有识别出可添加的来源');
+          else if (fallback.length > 0) setMessage(`已按网页来源补上 ${fallback.length} 个链接，确认后点「加入」`);
         } catch (err) {
           setErrors([err.message || String(err)]);
         } finally {
