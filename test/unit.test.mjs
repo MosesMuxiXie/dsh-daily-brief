@@ -6,6 +6,7 @@ import { guessJsonMapping, getByPath } from '../lib/engine/collect/json.js';
 import { applyAiPolish, buildBriefing } from '../lib/engine/render/model.js';
 import { defaultConfig, mergeConfig, personaFor } from '../lib/engine/config.js';
 import { splitInputs, guessMailSettings, probeMany } from '../lib/engine/import/detect.js';
+import { relativeTime } from '../lib/engine/text.js';
 
 test('parses RSS 2.0 and Atom without namespace assumptions', () => {
   const rss = `<?xml version="1.0"?><rss version="2.0"><channel><title>示例</title>
@@ -141,6 +142,14 @@ test('quiet focus sections hand spare rows to mail and school updates', () => {
   assert.ok(mail, 'mail section should appear when it takes the spare rows');
   assert.ok(mail.items.length >= 2);
   assert.match(briefing.headline, /AI|游戏|其他/);
+});
+
+test('relative time never claims a future minute for a just-now item', () => {
+  const now = new Date('2026-11-08T13:05:00.000Z');
+  assert.equal(relativeTime(new Date('2026-11-08T13:05:20.000Z'), now), '刚刚');
+  assert.equal(relativeTime(new Date('2026-11-08T13:04:40.000Z'), now), '刚刚');
+  assert.equal(relativeTime(new Date('2026-11-08T11:05:00.000Z'), now), '2 小时前');
+  assert.equal(relativeTime(new Date('2026-11-08T15:05:00.000Z'), now), '2 小时后');
 });
 
 test('server strip keeps every monitored server without spending news rows', () => {

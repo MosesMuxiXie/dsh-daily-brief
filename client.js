@@ -72,6 +72,7 @@ window.__ModuleLoader__.load({
 .dbp-color { width:46px; height:30px; padding:0; border:1px solid rgba(255,255,255,.14); border-radius:8px; background:#0b0b0e; }
 .dbp-textarea-sm { min-height:66px; }
 .dbp-note { margin:-4px 0 14px; padding:9px 12px; border:1px solid var(--dsw-alias-border-l1,#33333a); border-radius:10px; background:var(--dsw-alias-bg-layer-2,#17171b); color:var(--dsw-alias-label-secondary); font-size:12px; line-height:1.5; }
+.dbp-note-inline { margin-top:9px; color:var(--dsw-alias-label-tertiary); font-size:11.5px; }
 .dbp-label { font-size:11px; font-weight:600; letter-spacing:.12em; color:var(--dsw-alias-label-tertiary); text-transform:uppercase; }
 .dbp-today-meta { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--dsw-alias-label-secondary); margin-bottom:10px; }
 .dbp-dot { width:6px; height:6px; border-radius:50%; background:var(--dsw-alias-state-success-primary,#2f9a6d); }
@@ -500,7 +501,7 @@ window.__ModuleLoader__.load({
         h(
           'div',
           { className: 'dbp-group' },
-          h('div', { className: 'dbp-group-title' }, h('span', null, '我的 Minecraft 服务器')),
+          h('div', { className: 'dbp-group-title' }, h('span', null, '服务器与监控')),
           h(Chips, {
             items: minecraft.map((source) => ({ id: source.id, label: minecraftAddressOf(source) })),
             empty: '还没有添加服务器',
@@ -552,6 +553,7 @@ window.__ModuleLoader__.load({
             );
           }),
         ),
+        locked ? h('div', { className: 'dbp-note-inline' }, '重启一次 DSH 后，这里就可以切换风格') : null,
         current === 'custom'
           ? h(
               'div',
