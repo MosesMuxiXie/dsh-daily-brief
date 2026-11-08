@@ -103,6 +103,22 @@ window.__ModuleLoader__.load({
 .dbp-warn { margin-top:10px; font-size:12px; color:var(--dsw-alias-state-warn-primary,#b57a2e); }
 .dbp-quiet { padding:12px 0 2px; font-size:12.5px; color:var(--dsw-alias-label-tertiary); }
 .dbp-digest { margin:10px 0 2px; font-size:13.5px; line-height:1.8; color:var(--dsw-alias-label-primary); }
+.dbp-points { margin:11px 0 2px; padding:0; list-style:none; }
+.dbp-points li { position:relative; padding-left:15px; margin-bottom:7px; font-size:13px; line-height:1.72; color:var(--dsw-alias-label-primary); }
+.dbp-points li:last-child { margin-bottom:0; }
+.dbp-points li::before { content:''; position:absolute; left:2px; top:.62em; width:4px; height:4px; border-radius:50%; background:#c46a4a; }
+.dbp-linkbtn { margin-left:auto; padding:0; border:0; background:none; color:#8ab4f8; font-size:12px; cursor:pointer; }
+.dbp-linkbtn:hover { text-decoration:underline; }
+.dbp-style-notes { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-top:12px; padding-top:12px; border-top:1px dashed rgba(255,255,255,.08); }
+.dbp-style-notes-label { font-size:11.5px; color:var(--dsw-alias-label-tertiary); margin-right:2px; }
+.dbp-pick-list { max-height:320px; overflow:auto; margin:4px 0 2px; border:1px solid rgba(255,255,255,.08); border-radius:10px; }
+.dbp-pick { display:flex; align-items:center; gap:10px; width:100%; padding:10px 12px; border:0; border-bottom:1px solid rgba(255,255,255,.05); background:transparent; color:inherit; font-size:13px; text-align:left; cursor:pointer; }
+.dbp-pick:last-child { border-bottom:0; }
+.dbp-pick:hover { background:rgba(255,255,255,.04); }
+.dbp-pick.is-on { background:rgba(138,180,248,.12); }
+.dbp-pick-name { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.dbp-pick-meta { color:var(--dsw-alias-label-tertiary); font-size:11.5px; font-variant-numeric:tabular-nums; }
+.dbp-pick-check { color:#8ab4f8; font-weight:700; }
 .dbp-empty { text-align:center; padding:34px 10px; }
 .dbp-empty p { margin:0 0 14px; color:var(--dsw-alias-label-secondary); font-size:13px; }
 .dbp-chips { display:flex; flex-wrap:wrap; gap:7px; margin-top:12px; }
@@ -293,6 +309,7 @@ window.__ModuleLoader__.load({
         );
       }
       const digest = typeof section.digest === 'string' ? section.digest.trim() : '';
+      const points = Array.isArray(section.points) ? section.points.filter((entry) => String(entry || '').trim() !== '') : [];
       return h(
         'div',
         { className: 'dbp-group' },
@@ -302,7 +319,9 @@ window.__ModuleLoader__.load({
           h('span', null, section.zh),
           h('i', null, `${section.items.length} 条`),
         ),
-        digest
+        points.length > 0
+          ? h('ul', { className: 'dbp-points' }, points.map((entry, index) => h('li', { key: `${section.id}-p-${index}` }, entry)))
+          : digest
           ? h('p', { className: 'dbp-digest' }, digest)
           : section.items.map((item, index) =>
           h(
@@ -474,7 +493,7 @@ window.__ModuleLoader__.load({
     }
 
     function FocusCard(props) {
-      const { sources, onAdd, onRemove, locked } = props;
+      const { sources, onAdd, onRemove, locked, onPickSteam } = props;
       const groupOf = (kind) => sources.filter((source) => focusGroupOf(source) === kind);
       const x = groupOf('x');
       const steam = groupOf('steam');
@@ -498,7 +517,14 @@ window.__ModuleLoader__.load({
         h(
           'div',
           { className: 'dbp-group' },
-          h('div', { className: 'dbp-group-title' }, h('span', null, '在玩的游戏')),
+          h(
+            'div',
+            { className: 'dbp-group-title' },
+            h('span', null, '在玩的游戏'),
+            onPickSteam && !locked
+              ? h('button', { type: 'button', className: 'dbp-linkbtn', onClick: onPickSteam }, '从 Steam 库选择')
+              : null,
+          ),
           h(Chips, { items: steam.map((source) => ({ id: source.id, label: source.label })), empty: '还没有添加游戏', onRemove, locked }),
           locked ? null : h(AddRow, { placeholder: '输入 Steam appid，例如 502500', onAdd: (value) => onAdd('steam', value) }),
         ),
@@ -518,11 +544,11 @@ window.__ModuleLoader__.load({
     }
 
     const BUILTIN_STYLES = [
-      { id: 'whale', zh: '鲸鱼娘', accent: '#4aa8ff', tagline: '蓝色的大肥鱼', emoji: '🐋' },
-      { id: 'assistant', zh: '助手', accent: '#8ab4f8', tagline: '清楚、可靠', emoji: '🗂' },
-      { id: 'butler', zh: '管家', accent: '#c9a227', tagline: '正式、周到', emoji: '🎩' },
-      { id: 'officer', zh: '军官', accent: '#d05a4e', tagline: '简短、果断', emoji: '🎖' },
-      { id: 'custom', zh: '自定义', accent: '#9a8cff', tagline: '名字、语气、颜色', emoji: '🎨' },
+      { id: 'whale', zh: '鲸鱼娘', accent: '#4aa8ff', tagline: '蓝色鲸鱼少女，聪明但懒，傲娇又甜', emoji: '🐋', notes: ['称你为「主人」', '自称「本鲸」', '拒绝被说胖', '材料不足会直说'] },
+      { id: 'assistant', zh: '助手', accent: '#8ab4f8', tagline: '先结论、后背景，不讲废话', emoji: '🗂', notes: ['结论先行', '短句', '不寒暄', '标注不确定'] },
+      { id: 'butler', zh: '管家', accent: '#c9a227', tagline: '正式、周到，像一份晨间汇报', emoji: '🎩', notes: ['称「您」', '结论→要点→留意', '不用感叹号'] },
+      { id: 'officer', zh: '军官', accent: '#d05a4e', tagline: '作战简报：动词开头，数字优先', emoji: '🎖', notes: ['动词开头', '每条≤24字', '数字优先', '不提问题'] },
+      { id: 'custom', zh: '自定义', accent: '#9a8cff', tagline: '名字、语气、颜色都由你定', emoji: '🎨', notes: ['名字', '一句话介绍', '主色', '语气'] },
     ];
 
     function StyleCard(props) {
@@ -558,6 +584,17 @@ window.__ModuleLoader__.load({
           }),
         ),
         locked ? h('div', { className: 'dbp-note-inline' }, '重启一次 DSH 后，这里就可以切换风格') : null,
+        (() => {
+          const active = styles.find((style) => style.id === current) || {};
+          const notes = Array.isArray(active.notes) && active.notes.length > 0 ? active.notes : (BUILTIN_STYLES.find((entry) => entry.id === current) || {}).notes;
+          if (!Array.isArray(notes) || notes.length === 0) return null;
+          return h(
+            'div',
+            { className: 'dbp-style-notes' },
+            h('span', { className: 'dbp-style-notes-label' }, '这张卡的约束'),
+            notes.map((note) => h('span', { className: 'dbp-tag', key: `${current}-${note}` }, note)),
+          );
+        })(),
         current === 'custom'
           ? h(
               'div',
@@ -741,6 +778,93 @@ window.__ModuleLoader__.load({
 
     function requiresOf(proposal) {
       return Array.isArray(proposal.requires) ? proposal.requires : [];
+    }
+
+    function SteamPicker(props) {
+      const { onClose, onAdded } = props;
+      const [loading, setLoading] = useState(true);
+      const [games, setGames] = useState([]);
+      const [error, setError] = useState('');
+      const [picked, setPicked] = useState({});
+      const [busy, setBusy] = useState(false);
+
+      useEffect(() => {
+        let alive = true;
+        api('/steam/library', {}, 120000)
+          .then((result) => {
+            if (!alive) return;
+            setGames(Array.isArray(result.games) ? result.games : []);
+            setLoading(false);
+          })
+          .catch((failure) => {
+            if (!alive) return;
+            setError(String(failure.message || failure));
+            setLoading(false);
+          });
+        return () => {
+          alive = false;
+        };
+      }, []);
+
+      const chosen = Object.values(picked);
+      const submit = async () => {
+        if (chosen.length === 0 || busy) return;
+        setBusy(true);
+        try {
+          await api('/sources', {
+            proposals: chosen.map((game) => ({
+              type: 'steam',
+              section: 'gameNews',
+              label: game.name,
+              options: { appid: game.appid, limit: 3, sinceHours: 24 * 14 },
+            })),
+          }, 120000);
+          onAdded(chosen.length);
+        } catch (failure) {
+          setError(String(failure.message || failure));
+          setBusy(false);
+        }
+      };
+
+      const body = loading
+        ? h('p', { className: 'dbp-quiet' }, '正在读取本机 Steam 库…')
+        : games.length === 0
+        ? h('p', { className: 'dbp-quiet' }, '没有找到已安装的 Steam 游戏。确认 Steam 已安装并且至少登录过一次。')
+        : h(
+            'div',
+            { className: 'dbp-pick-list' },
+            games.map((game) => {
+              const on = Boolean(picked[game.appid]);
+              return h(
+                'button',
+                {
+                  key: game.appid,
+                  type: 'button',
+                  className: `dbp-pick${on ? ' is-on' : ''}`,
+                  onClick: () => setPicked((prev) => ({ ...prev, [game.appid]: prev[game.appid] ? null : { appid: game.appid, name: game.name } })),
+                },
+                h('span', { className: 'dbp-pick-name' }, game.name),
+                h('span', { className: 'dbp-pick-meta' }, String(game.appid)),
+                on ? h('span', { className: 'dbp-pick-check' }, '✓') : null,
+              );
+            }),
+          );
+
+      return h(
+        Modal,
+        {
+          title: '从 Steam 库选择',
+          sub: '只读本机已安装列表，选中后作为「在玩的游戏」加入，之后仍可删改。',
+        },
+        body,
+        error ? h('p', { className: 'dbp-modal-err' }, error) : null,
+        h(
+          'div',
+          { className: 'dbp-modal-actions' },
+          h('button', { type: 'button', className: 'dbp-btn', onClick: submit, disabled: busy || chosen.length === 0 }, busy ? '加入中…' : `加入 ${chosen.length} 个`),
+          h('button', { type: 'button', className: 'dbp-btn dbp-btn-ghost', onClick: onClose }, '关闭'),
+        ),
+      );
     }
 
     function AddSourceDialog(props) {
@@ -1024,6 +1148,7 @@ window.__ModuleLoader__.load({
       const [busy, setBusy] = useState('');
       const [flash, setFlash] = useState(null);
       const [addOpen, setAddOpen] = useState(false);
+      const [steamOpen, setSteamOpen] = useState(false);
       const saveTimer = useRef(null);
       const caps = state && Array.isArray(state.capabilities) ? state.capabilities : [];
       const stale = Boolean(state && (!caps.includes('popup') || !caps.includes('persona2')));
@@ -1305,7 +1430,13 @@ window.__ModuleLoader__.load({
               )
             : null,
           h(StyleCard, { config, onSave: (patch) => saveDebounced(patch), locked: stale }),
-          h(FocusCard, { sources: state.sources || [], onAdd: addSource, onRemove: removeSource, locked: stale }),
+          h(FocusCard, {
+            sources: state.sources || [],
+            onAdd: addSource,
+            onRemove: removeSource,
+            locked: stale,
+            onPickSteam: caps.includes('steamlib') ? () => setSteamOpen(true) : null,
+          }),
           h(SourcesCard, {
             sources: state.sources || [],
             secrets: state.secrets,
@@ -1343,6 +1474,16 @@ window.__ModuleLoader__.load({
                 onClose: () => setAddOpen(false),
                 onAdded: (count) => {
                   flashWith(`已添加 ${count} 个来源`);
+                  refresh();
+                },
+              })
+            : null,
+          steamOpen
+            ? h(SteamPicker, {
+                onClose: () => setSteamOpen(false),
+                onAdded: (count) => {
+                  setSteamOpen(false);
+                  flashWith(`已从 Steam 库添加 ${count} 个游戏`);
                   refresh();
                 },
               })

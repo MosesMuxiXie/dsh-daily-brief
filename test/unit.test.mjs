@@ -59,7 +59,7 @@ test('AI polish keeps the persona greeting and strips duplicated greetings', () 
   assert.equal(next.sections[0].aiNote, '提示');
 });
 
-test('ai digests fold AI and game links into one summary paragraph', () => {
+test('ai points extract short lines instead of links', () => {
   const config = defaultConfig();
   const makeItems = (prefix, count) =>
     Array.from({ length: count }, (_, index) => ({
@@ -81,17 +81,23 @@ test('ai digests fold AI and game links into one summary paragraph', () => {
     ],
   });
   const ai = briefing.sections.find((section) => section.id === 'aiNews');
-  assert.ok(ai.digest.includes('ai 标题 0'));
+  assert.ok(ai.points.includes('ai 标题 0'));
+  assert.equal(ai.digest, '');
 
   const polished = applyAiPolish(briefing, {
-    digests: {
-      aiNews: 'OpenAI 与 Anthropic 各自更新了记忆机制，研究团队把重点放在长期上下文上。',
-      gameNews: '坦克世界闪击战推出新的花桥行动，K-70 活动持续到月底。',
+    points: {
+      aiNews: ['OpenAI 更新了智能体记忆机制，重点放在长期上下文', 'Anthropic 让 Claude 参与 MMORPG 实验'],
+      gameNews: ['坦克世界闪击战上线花桥行动', 'K-70 活动持续到月底'],
     },
   });
   const aiAfter = polished.sections.find((section) => section.id === 'aiNews');
-  assert.match(aiAfter.digest, /记忆机制/);
-  assert.equal((renderBriefingHtml(polished).match(/<a /g) || []).length, 0);
+  assert.deepEqual(aiAfter.points, [
+    'OpenAI 更新了智能体记忆机制，重点放在长期上下文',
+    'Anthropic 让 Claude 参与 MMORPG 实验',
+  ]);
+  const html = renderBriefingHtml(polished);
+  assert.match(html, /<ul class="points">/);
+  assert.equal((html.match(/<a /g) || []).length, 0);
 });
 
 test('import helpers split lines and suggest IMAP settings', () => {
@@ -147,7 +153,8 @@ test('v1 config migrates old broad presets into the focused v2 sources', () => {
   assert.equal(migrated.version, 2);
   assert.equal(migrated.sources.some((source) => source.id === 'preset-ai-hn'), false);
   assert.equal(migrated.sources.some((source) => source.type === 'x'), true);
-  assert.equal(migrated.sources.some((source) => source.type === 'minecraft'), true);
+  assert.equal(migrated.sources.some((source) => source.type === 'steam'), false);
+  assert.equal(migrated.sources.some((source) => source.type === 'minecraft'), false);
   assert.equal(migrated.sources.some((source) => source.id === 'custom-mine'), true);
   assert.equal(migrated.delivery.popup.enabled, true);
   assert.equal(migrated.delivery.toast, undefined);

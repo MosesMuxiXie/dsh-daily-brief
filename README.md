@@ -1,79 +1,94 @@
-# DSH 每日简报 · Daily Brief v2
+# 每日简报 · Daily Brief v2
 
-为 DeepSeek Harness 打造的“少而准”的每日简报：每天定时把**你关注的 X 账号**、**你在玩的几款 Steam 游戏**和**你的 Minecraft 服务器**整理成一张窄卡片，并以桌面小窗口弹出——像记事本那样出现，而不是发一条系统通知。
+给 DeepSeek Harness（DSH）用的每日简报插件：每天定时把你**主动关注**的几件事——X 上的 AI 账号、Steam 库里在玩的游戏、你自己的服务器或监控页——整理成一张窄卡片，并以桌面小窗口弹出，像记事本那样出现在屏幕角落，而不是发一条系统通知。
 
-- 最多 5 条：AI 动态 3 条、游戏 2 条，服务器状态单独一条底栏，不占名额。
-- **AI 与游戏都只给一段总结**：几条同类消息由 AI 归纳成一段话，不列原始链接、不做条目清单；没有 AI 可用时退回把标题并成一段。
-- 只抓你列出的账号和游戏；不再聚合 Hacker News、arXiv、IGN 这类大范围信息流。
-- 五种人设卡片：鲸鱼娘、助手、管家、军官，以及一个可自定义名字、主色和语气的「自定义」。
-- 弹窗是独立的 Edge / Chrome `--app` 窗口，无地址栏、无标签页、记住独立配置，默认停在右下角。
-- 控制面板只有一页：今天、关注范围、节奏、往期；改完即时保存，没有“保存”按钮。
-- 即使 DSH 没在运行，Windows 计划任务也会在后台生成并弹出窗口。
+它刻意做得「少而准」：默认没有一大堆信息流，也不替你猜兴趣。安装后你只做三件事：选一张人设卡、确认关注的 X 账号、从本机 Steam 库里勾几款游戏；服务器完全由你填。
 
-## 快速开始
+## 特性
 
-1. 安装插件（在 DSH 对话里让 agent 用 `plugin_manager` 的 `install_bundle` 指向本目录），完成后重载页面。
-2. 打开左侧边栏的「每日简报」。
-3. 在「关注范围」里调整：
-   - **X 账号**：默认 OpenAI、Anthropic、DeepMind、Sam Altman，可增删。
-   - **Steam 游戏**：默认 ACE COMBAT 7、ACE COMBAT ZERO、World of Tanks Blitz，可增删。
-   - **Minecraft 服务器**：默认 `play.simpfun.cn:11848`，可改成自己的地址。
-4. 在「人设卡片」里挑一张：鲸鱼娘 / 助手 / 管家 / 军官，或「自定义」自己写名字、一句话、主色和语气。
-5. 在「节奏」里确认每天生成时间（默认 07:30）和「生成后弹出窗口」。
-6. 点「立即生成」看效果；明天到点会自动生成。
+- **最多 5 条**：AI 3 条、游戏 2 条；服务器状态单独一条底栏，不占新闻名额。
+- **只列你要的**：AI 只抓你写的 X 账号，游戏只抓你在 Steam 库里勾选的 appid，没有 Hacker News、IGN 这类大范围聚合。
+- **要点式排版**：AI 与游戏各给 2–4 条短要点（谁做了什么/有什么变化），不挂原始链接，扫一眼就够；没配 AI 时退回把标题提炼成要点。
+- **五种人设**：鲸鱼娘、助手、管家、军官，以及可自定义名字、一句话、主色和语气的「自定义」；每张卡都有明确的语气约束。
+- **本地 Steam 库发现**：安装后自动读取本机 Steam 已安装列表，在面板里勾选即可，不用手抄 appid。
+- **服务器由你定义**：`地址:端口`、`minecraft://`、`http(s)://` 监控页都行；内网、IP、非标准端口同样支持。
+- **桌面弹窗**：独立 Edge/Chrome `--app` 窗口，无地址栏、无标签页，默认右下角 560×860。
+- **一页面板**：今天、简报风格、关注范围、来源、节奏、往期；改完即时保存，没有「保存」按钮。
+- **不依赖 DSH 常开**：Windows 计划任务会在后台生成并弹出窗口。
 
-## 日常关注
+## 环境要求
 
-| 类型 | 输入 | 说明 |
+- Windows 10/11（弹窗与计划任务依赖 Windows；其他平台只能生成 HTML）。
+- 已安装 DeepSeek Harness，并能用 `plugin_manager` 安装本地插件目录。
+- 本机有 Microsoft Edge 或 Google Chrome（用于独立窗口）。
+- Node.js 随 DSH 提供；若要跑测试，需要 Node 18+。
+
+## 安装
+
+1. 在 DSH 对话里让 agent 用 `plugin_manager` 的 `install_bundle` 指向本目录（或先 `git clone` 再安装）。
+2. 重载 DSH 页面，左侧边栏会出现「每日简报」。
+3. 打开面板，插件会自动创建配置目录：`%USERPROFILE%\.dsh\storages\daily-brief\`。
+
+## 首次使用
+
+1. **简报风格**：点一张人设卡。卡片下方会列出这张卡的约束（例如军官卡「动词开头、每条 ≤24 字」）。
+2. **关注范围 → X 账号**：默认 OpenAI、Anthropic、DeepMind、Sam Altman，可删可加；填 handle 或 `@handle`。
+3. **关注范围 → 在玩的游戏**：点「从 Steam 库选择」，勾选本机已安装的游戏；也可以直接填 appid。
+4. **关注范围 → 服务器与监控**：自己填，例如 `play.example.com:25565`、`192.168.1.20:8123` 或 `http://status.example.com/`。插件不会预置任何服务器。
+5. **节奏**：确认每天生成时间（默认 07:30）和「生成后弹出窗口」。
+6. 点「立即生成」看效果。之后每天到点自动生成；同一天只生成一次。
+
+## 关注范围
+
+| 类型 | 输入示例 | 行为 |
 | --- | --- | --- |
-| X 账号 | `OpenAI`、`@AnthropicAI` | 走公开的 syndication 时间线，不需要登录；被限流时自动改用该账号的官方博客 RSS 补位，并显示上次缓存 |
-| Steam 游戏 | appid，例如 `502500` | 读 Steam 官方新闻接口；连不上时回退到上次成功的结果 |
-| Minecraft 服务器 | `host:port` | 先走原生 Java 状态协议（含 SRV 记录），失败再走 mcstatus.io；离线时底栏明确显示“离线” |
-| 服务器监控页 | `http://host:port/`、`10.0.0.5:9000` | 当成“状态来源”记录在线状态与响应时间；内网/localhost 地址自动允许 |
+| X 账号 | `OpenAI`、`@AnthropicAI` | 读公开 syndication 时间线，不需要登录；被限流时改用该账号的官方博客 RSS 补位，并显示上次缓存 |
+| Steam 游戏 | `502500`，或「从 Steam 库选择」 | 读 Steam 官方新闻接口；连不上时回退到上次成功结果 |
+| Minecraft 服务器 | `play.example.com:25565`、`minecraft://mc.example.net` | 原生 Java 状态协议（含 SRV），失败再走 mcstatus.io；离线时底栏写明「离线」 |
+| 监控页 / 内网服务 | `http://host:port/`、`10.0.0.5:9000` | 当成「状态来源」记录在线状态与响应时间；内网与 localhost 会自动允许 |
 
-条目都按时间倒序，超过关注窗口的旧消息不会混进来。
+- 条目按时间倒序，超出关注窗口的旧消息不会混进来。
+- 服务器与监控只占底栏，加多少个都不挤占 5 条新闻名额。
 
 ## 人设卡片
 
-简报页头部的名字、问候语、强调色和 AI 润色的语气都来自这张卡片：
+简报页头的名字、问候语、强调色以及 AI 润色的语气，都来自选中的卡片。
 
-| 卡片 | 气质 |
-| --- | --- |
-| 🐋 鲸鱼娘 | 蓝色的大肥鱼，语气轻缓，偶尔“呀”“呢”收尾 |
-| 🗂 助手 | 干净利落，只讲重点 |
-| 🎩 管家 | 礼貌克制，称呼“先生” |
-| 🎖 军官 | 简短有力，像战报 |
-| 🎨 自定义 | 自己填名字（24 字内）、一句话签名、主色（`#rrggbb`）和语气提示词 |
+| 卡片 | 风格 | 主要约束 |
+| --- | --- | --- |
+| 🐋 鲸鱼娘 | 蓝色鲸鱼少女，聪明但懒，傲娇又甜 | 称你为「主人」、自称「本鲸」、只说简体中文、绝不承认胖、素材不足会直说 |
+| 🗂 助手 | 先结论、后背景，不讲废话 | 短句、不寒暄、标注不确定、只整理事实 |
+| 🎩 管家 | 正式、周到，像一份晨间汇报 | 称「您」、结论 → 要点 → 留意、不用感叹号 |
+| 🎖 军官 | 作战简报：动词开头，数字优先 | 每条尽量 ≤24 字、时间与数字优先、不对上级提问 |
+| 🎨 自定义 | 名字、语气、颜色都由你定 | 名字（24 字内）、一句话签名、主色 `#rrggbb`、语气提示词（2000 字内） |
 
-选中即保存；自定义卡片的四个字段也会即时写入 `config.json` 的 `persona` 段。
+选中即保存。人设只影响文案与配色，不影响抓取范围。
 
 ## 更多来源：邮箱、学校、飞书、订阅
 
-面板头部和「来源」卡里都有「添加来源」：粘贴一行地址，点「识别」，勾选后再「加入」。识别不出来时，以 `http://` / `https://` 开头的行会退一步按「网页来源」列出来（可手动改分组），照样能加。
+面板的「添加来源」支持一次粘贴多行地址，先「识别」再勾选「加入」。
 
 | 粘贴的内容 | 识别结果 |
 | --- | --- |
-| `me@school.edu` / `you@gmail.com` | 邮箱（IMAP）。Gmail 用应用专用密码；学校邮箱若识别不出服务器，会多出一个 IMAP 服务器输入框 |
-| `https://…/feed.xml`、`.ics`、任意网页 | 订阅源 / 日历 / 网页抓取（网页可选关键词过滤） |
-| `https://www.managebac.com/...` | ManageBac 通知（需要登录 Cookie，或粘贴日历订阅链接） |
-| `https://…feishu.cn/docx/...`、`/wiki/...`、`/calendar/...` | 飞书文档 / 知识库 / 日历；新版飞书多为前端渲染，抓不到条目时推荐用「订阅链接」ICS 或机器人推送 |
-| `http://af.rainplay.cn:44825/` 这类监控面板 | 服务器监控来源（看起来像登录壳也照样能记在线状态） |
+| `you@gmail.com`、`me@school.edu` | 邮箱（IMAP）。Gmail 用应用专用密码；学校邮箱识别不出服务器时会多出一个 IMAP 服务器输入框 |
+| `https://…/feed.xml`、`.ics`、任意网页 | 订阅源 / 日历 / 网页抓取（可加关键词过滤） |
+| `https://www.managebac.com/...` | ManageBac 通知（需要登录 Cookie，或日历订阅链接） |
+| `https://…feishu.cn/docx|wiki|calendar/...` | 飞书文档 / 知识库 / 日历；前端渲染抓不到时建议用 ICS 订阅 |
+| `http://status.example.com/` | 服务器监控来源 |
 | `10.0.0.5:9000`、`192.168.1.20:8123` | 同时给出 Minecraft 与 HTTP 监控两个候选，自己勾选 |
-| `play.example.com:25565`、`minecraft://mc.example.net` | Minecraft 服务器 |
 | Steam 商店或新闻链接 | 自动取 appid |
 
-- 密码、授权码、Cookie 都存在本机 DPAPI 加密的 secrets 文件里（`%USERPROFILE%\.dsh\storages\daily-brief\secrets\`），不会写进 `config.json`。
-- 网页类来源（含飞书、ManageBac）会自动带上你在「添加来源」里填的 Cookie 再抓取。
-- 5 条预算先给 AI 与游戏（3 + 2），这两个板块安静时，空位会让给邮箱、学校通知、飞书、日历等板块，按最新一条的时间轮流补位。
-- 「来源」卡可以逐个测试、启停、删除；`删除` 会同时清掉该来源保存的密码/Cookie。
-
+- 密码、授权码、Cookie 保存在本机 DPAPI 加密的 secrets 文件里（`…\daily-brief\secrets\`），不写进 `config.json`。
+- 网页类来源会自动带上你填的 Cookie 再抓取。
+- 5 条预算先给 AI 与游戏；这两个板块安静时，空位会让给邮箱、学校通知、飞书、日历等板块。
+- 「来源」卡可以逐个测试、启停、删除；删除会同时清掉该来源保存的密码/Cookie。
 
 ## 桌面窗口
 
 生成后调用本机 Edge（没有则 Chrome）以 `--app=file://…` 打开简报：
 
-- 独立窗口、无浏览器外壳，尺寸与位置可配置（默认 560×860，右下角）。
-- 使用插件自己的临时配置目录，不碰你日常浏览器的登录状态。
+- 独立窗口、无浏览器外壳，尺寸与位置可配置（默认 560×860，右下角，也可居中）。
+- 使用插件自己的临时配置目录，不影响日常浏览器的登录状态。
 - 找不到 Chromium 时回退到默认浏览器打开，不会静默失败。
 
 ## 计划任务
@@ -81,34 +96,57 @@
 插件注册名为 **DSH Daily Brief** 的 Windows 计划任务：
 
 - 以当前用户身份、无窗口运行 `lib/engine/runner.js`，不打开 DSH 窗口、不监听端口。
-- 生成 `%USERPROFILE%\.dsh\storages\daily-brief\briefings\<日期>\index.html`，随后弹出桌面窗口。
-- 错过时间会自动补跑；同一天只生成一次（面板「立即生成」可强制重跑）。
-- 日志：`%USERPROFILE%\.dsh\storages\daily-brief\logs\runner.log`。
+- 生成 `…\daily-brief\briefings\<日期>\index.html`，随后弹出桌面窗口。
+- 错过时间会自动补跑；同一天只生成一次（「立即生成」可强制重跑，且不计入自动生成记录）。
+- 日志：`…\daily-brief\logs\runner.log`。
 
 ## AI 润色
 
-- 默认「自动」：仅当本机 DSH 有可用登录时，用 headless 方式让模型重写**标题和一句引言**；失败自动回退本地文案。
-- 只改文案，不改条目、不增删新闻。
+- 默认「自动」：仅当本机 DSH 有可用登录时，用 headless 方式让模型写标题、一句引言和两段要点；失败自动回退本地文案。
+- 只改文案，不改抓取结果、不增删条目；提示词里明确禁止编造与出现网址。
 
-## 数据与迁移
+## 数据与隐私
 
-- 配置、缓存、简报都在 `%USERPROFILE%\.dsh\storages\daily-brief\`；X 与 Steam 的缓存位于其中的 `.cache\`。
-- 从 v1 升级时：旧的 `preset-*` 大范围来源会被移除，换成上面的三组关注来源；手动添加的来源保留。
-- v1 → v2 升级后请重启一次 DSH：面板本身会即时更新，但插件主进程要重启后才提供「关注范围」编辑、桌面弹窗接口、人设卡片的自定义字段，以及飞书 / IP / 监控页等新的识别规则（面板会显示提示）。
-- 不发送任何遥测；所有数据只在本机。
+- 配置、缓存、简报都在 `%USERPROFILE%\.dsh\storages\daily-brief\`；X 与 Steam 缓存位于其中的 `.cache\`。
+- 所有抓取只访问你添加的来源与本机 Steam 安装信息，不发遥测。
+- 从 v1 升级：旧的 `preset-*` 大范围来源会被移除，手动添加的来源保留；升级后重启一次 DSH 以获得新识别规则与人设字段。
 
-## 版本管理
+## 常见问题
 
-仓库：<https://github.com/MosesMuxiXie/dsh-daily-brief>（私有）。
+| 现象 | 处理 |
+| --- | --- |
+| 面板提示「重启一次 DSH」 | 插件主进程仍是旧代码：完全退出并重开 DSH，面板会恢复可编辑 |
+| X 板块经常很少 | syndication 对同一出口 IP 限流很紧（约每 15 分钟 1 次），插件会自动用官方博客补位；可减少账号数量 |
+| Steam 显示「暂时连不上」 | 官方新闻接口偶发超时，会自动显示上次结果；稍后重跑即可 |
+| 服务器一直离线 | 确认地址与端口、服务器是否开机；内网地址需允许私有网络（已默认允许） |
+| 桌面窗口没出现 | 检查是否安装 Edge/Chrome；查看 `logs\runner.log` 的投递记录 |
+| 飞书/ManageBac 抓不到条目 | 多为前端渲染或需要登录：改用日历 ICS 订阅，或在「添加来源」里填入 Cookie |
 
-- 每次改完代码提交一次，仓库已启用 `core.hooksPath=.githooks`，提交后 `post-commit` 会自动 `git push`。
-- 手动同步：`npm run sync`（等价于 `git add -A && git commit -m "sync" && git push`）。
-- 推送失败不会阻塞提交；联网后执行 `git push` 即可补齐。
+## 配置参考（`config.json`）
+
+- `sources[]`：`type`（x/steam/minecraft/http/rss/atom/json/ics/page/imap/graph/managebac）、`section`、`label`、`enabled`、`options`。
+- `persona`：`preset`（whale/assistant/butler/officer/custom）、`customName`、`customTagline`、`customAccent`、`customPrompt`。
+- `schedule`：`time`（HH:MM）、`enabled`、`wakeToRun`。
+- `delivery.popup`：`enabled`、`position`、`width`、`height`、`openOnGenerate`。
+- `ai.polish`：`auto` / `off`。
 
 ## 开发
 
 ```bash
-npm test                     # 单元测试
-node lib/engine/runner.js --dry-run --force   # 不投递，直接看生成结果
-npm run sync                 # 提交并推送（脚本与钩子二选一即可）
+npm test                                      # 单元测试（node --test）
+node lib/engine/runner.js --dry-run --force   # 生成但不投递，检查输出
+node lib/engine/runner.js --force             # 生成并投递（按配置弹窗）
 ```
+
+目录结构：
+
+- `lib/engine/`：配置、抓取、渲染、AI、弹窗、计划任务。
+- `lib/engine/collect/`：各类来源采集器（x、steam、minecraft、feed、http、imap…）。
+- `lib/host/`：面板 API、工具注册、计划任务桥接。
+- `client.js`：面板 UI（单页）。
+- `test/unit.test.mjs`：纯函数与渲染测试。
+
+## 版本与反馈
+
+- 本插件按「每次改动提交一次」维护；仓库地址与提交钩子见 `.githooks/post-commit`。
+- 遇到问题请附：生成日期、`logs\runner.log` 相关片段、面板里「来源」卡的测试结果。
