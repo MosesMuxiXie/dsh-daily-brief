@@ -1,0 +1,4 @@
+#!/bin/sh
+# Push every commit in the background so a commit never blocks on the network.
+git push --quiet origin HEAD >/dev/null 2>&1 &
+exit 0

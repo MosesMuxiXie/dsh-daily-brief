@@ -1,0 +1,45 @@
+{
+  "name": "@local/dsh-daily-brief",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Focused daily briefing for DeepSeek Harness: five items from watched X accounts and Steam games, a Minecraft server strip, and a desktop popup window instead of a toast.",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "lib",
+    "cordis.patch.yml",
+    "locale",
+    "icon.svg",
+    "README.md"
+  ],
+  "icon": "./icon.svg",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true
+    }
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "sync": "git add -A && git commit -m \"sync\" --allow-empty && git push"
+  },
+  "dependencies": {
+    "fast-xml-parser": "^5.2.5",
+    "imapflow": "^1.0.181",
+    "mailparser": "^3.7.4",
+    "node-html-parser": "^7.0.1",
+    "node-ical": "^0.20.1",
+    "nodemailer": "^7.0.5"
+  }
+}
