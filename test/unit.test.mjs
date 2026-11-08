@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { parseFeedXml } from '../lib/engine/collect/feed.js';
 import { guessJsonMapping, getByPath } from '../lib/engine/collect/json.js';
 import { applyAiPolish, buildBriefing } from '../lib/engine/render/model.js';
+import { renderBriefingHtml } from '../lib/engine/render/html.js';
 import { defaultConfig, mergeConfig, personaFor } from '../lib/engine/config.js';
 import { splitInputs, guessMailSettings, probeMany } from '../lib/engine/import/detect.js';
 import { relativeTime } from '../lib/engine/text.js';
@@ -56,6 +57,41 @@ test('AI polish keeps the persona greeting and strips duplicated greetings', () 
   assert.equal(next.headline, 'AI 与游戏速览');
   assert.equal(next.ai.intro, '今天值得看看这几条');
   assert.equal(next.sections[0].aiNote, '提示');
+});
+
+test('ai digests fold AI and game links into one summary paragraph', () => {
+  const config = defaultConfig();
+  const makeItems = (prefix, count) =>
+    Array.from({ length: count }, (_, index) => ({
+      id: `${prefix}-${index}`,
+      title: `${prefix} 标题 ${index}`,
+      detail: '',
+      url: `https://example.com/${prefix}/${index}`,
+      date: new Date(Date.UTC(2026, 10, 8, index)).toISOString(),
+      meta: '',
+      badge: '',
+      tone: '',
+    }));
+  const briefing = buildBriefing({
+    config,
+    dateKey: '2026-11-08',
+    results: [
+      { source: { id: 'x-openai', label: 'OpenAI', section: 'aiNews', enabled: true }, result: { status: 'ok', items: makeItems('ai', 3), note: '' } },
+      { source: { id: 'steam-1', label: 'Game', section: 'gameNews', enabled: true }, result: { status: 'ok', items: makeItems('game', 2), note: '' } },
+    ],
+  });
+  const ai = briefing.sections.find((section) => section.id === 'aiNews');
+  assert.ok(ai.digest.includes('ai 标题 0'));
+
+  const polished = applyAiPolish(briefing, {
+    digests: {
+      aiNews: 'OpenAI 与 Anthropic 各自更新了记忆机制，研究团队把重点放在长期上下文上。',
+      gameNews: '坦克世界闪击战推出新的花桥行动，K-70 活动持续到月底。',
+    },
+  });
+  const aiAfter = polished.sections.find((section) => section.id === 'aiNews');
+  assert.match(aiAfter.digest, /记忆机制/);
+  assert.equal((renderBriefingHtml(polished).match(/<a /g) || []).length, 0);
 });
 
 test('import helpers split lines and suggest IMAP settings', () => {

@@ -102,6 +102,7 @@ window.__ModuleLoader__.load({
 .dbp-today-foot { display:flex; justify-content:space-between; gap:10px; margin-top:16px; padding-top:12px; border-top:1px solid var(--dsw-alias-border-l1); font-size:11.5px; color:var(--dsw-alias-label-tertiary); }
 .dbp-warn { margin-top:10px; font-size:12px; color:var(--dsw-alias-state-warn-primary,#b57a2e); }
 .dbp-quiet { padding:12px 0 2px; font-size:12.5px; color:var(--dsw-alias-label-tertiary); }
+.dbp-digest { margin:10px 0 2px; font-size:13.5px; line-height:1.8; color:var(--dsw-alias-label-primary); }
 .dbp-empty { text-align:center; padding:34px 10px; }
 .dbp-empty p { margin:0 0 14px; color:var(--dsw-alias-label-secondary); font-size:13px; }
 .dbp-chips { display:flex; flex-wrap:wrap; gap:7px; margin-top:12px; }
@@ -291,6 +292,7 @@ window.__ModuleLoader__.load({
           h('div', { className: 'dbp-quiet' }, section.id === 'aiNews' ? '暂时没有新动态' : '暂时没有新公告'),
         );
       }
+      const digest = typeof section.digest === 'string' ? section.digest.trim() : '';
       return h(
         'div',
         { className: 'dbp-group' },
@@ -300,7 +302,9 @@ window.__ModuleLoader__.load({
           h('span', null, section.zh),
           h('i', null, `${section.items.length} 条`),
         ),
-        section.items.map((item, index) =>
+        digest
+          ? h('p', { className: 'dbp-digest' }, digest)
+          : section.items.map((item, index) =>
           h(
             'div',
             { className: 'dbp-row', key: `${section.id}-${item.url || item.title}-${index}` },
