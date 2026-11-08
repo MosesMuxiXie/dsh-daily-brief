@@ -905,6 +905,36 @@ window.__ModuleLoader__.load({
           const fallback = [];
           const lines = String(text || '').split(/[\n,;，；]+/).map((line) => line.trim()).filter(Boolean);
           for (const line of lines) {
+            // Older hosts only know managebac.com; recognize the .cn family here so
+            // the guidance still shows before the host process is restarted.
+            if (/^https?:\/\/([^/]+\.)?managebac\.(com|cn|com\.cn|net|org)(\/|$)/i.test(line)) {
+              let mbHost = '';
+              try { mbHost = new URL(line).hostname.toLowerCase(); } catch { /* ignore */ }
+              // Replace whatever the host produced for this login shell (often a 404 or
+              // a page row with stale wording) with the canonical ManageBac entry.
+              for (let i = detected.length - 1; i >= 0; i -= 1) {
+                const url = String((detected[i].proposal && detected[i].proposal.url) || '');
+                if (mbHost && url.toLowerCase().includes(mbHost)) detected.splice(i, 1);
+              }
+              detected.push({
+                key: `mb-${detected.length}`,
+                checked: true,
+                label: 'ManageBac',
+                section: 'managebac',
+                secret: '',
+                host: '',
+                proposal: {
+                  type: 'managebac',
+                  section: 'managebac',
+                  label: 'ManageBac',
+                  url: line,
+                  requires: ['cookie'],
+                  note: '需要：学校 ManageBac 地址 + 登录 Cookie（浏览器 F12 → Network → 任意请求 → 复制 cookie 请求头）。也可以改用班级日历的 ICS 订阅链接。',
+                  preview: { title: 'ManageBac', subtitle: '通知与班级动态', items: [] },
+                },
+              });
+              continue;
+            }
             if (!/^https?:\/\//i.test(line)) continue;
             if (detected.some((row) => row.proposal && row.proposal.url === line)) continue;
             let parsed = null;
@@ -992,7 +1022,7 @@ window.__ModuleLoader__.load({
         Modal,
         {
           title: '添加来源',
-          sub: '粘贴网址、邮箱地址或服务器地址，每行一个。支持订阅源、网页、日历 ICS、邮箱（IMAP）、ManageBac、飞书、Steam 与 Minecraft。',
+          sub: '粘贴网址、邮箱地址或服务器地址，每行一个。支持订阅源、网页、日历 ICS、邮箱（IMAP）、ManageBac（.com / .cn）、飞书、Steam 与 Minecraft。',
         },
         locked ? h('div', { className: 'dbp-note' }, 'DSH 主进程还停在旧版插件，重启一次后再添加。') : null,
         h('textarea', {

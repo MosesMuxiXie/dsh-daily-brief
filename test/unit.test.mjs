@@ -273,3 +273,18 @@ test('ip addresses and monitor pages are addable as server sources', async () =>
   assert.equal(privateUrl.results[0].options.allowPrivate, true);
 });
 
+test('managebac domains on .cn and school subdomains are recognized', async () => {
+  for (const input of [
+    'https://www.managebac.com/student/',
+    'https://www.managebac.cn/student/',
+    'https://school.managebac.cn/student/notifications',
+  ]) {
+    const out = await probeMany(input, {});
+    const row = out.results[0];
+    assert.equal(row.type, 'managebac', `${input} is recognized as ManageBac`);
+    assert.equal(row.section, 'managebac');
+    assert.deepEqual(row.requires, ['cookie']);
+    assert.match(row.note, /Cookie|ICS/);
+  }
+});
+
