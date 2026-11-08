@@ -142,7 +142,7 @@ test('briefing keeps at most five news rows with the 3/2 AI-game split', () => {
   assert.match(briefing.headline, /AI|游戏/);
 });
 
-test('v1 config migrates old broad presets into the focused v2 sources', () => {
+test('v1 config migration keeps hand-added sources and drops old presets', () => {
   const migrated = mergeConfig({
     version: 1,
     sources: [
@@ -152,12 +152,30 @@ test('v1 config migrates old broad presets into the focused v2 sources', () => {
   });
   assert.equal(migrated.version, 2);
   assert.equal(migrated.sources.some((source) => source.id === 'preset-ai-hn'), false);
-  assert.equal(migrated.sources.some((source) => source.type === 'x'), true);
+  assert.equal(migrated.sources.some((source) => source.type === 'x'), false);
   assert.equal(migrated.sources.some((source) => source.type === 'steam'), false);
   assert.equal(migrated.sources.some((source) => source.type === 'minecraft'), false);
   assert.equal(migrated.sources.some((source) => source.id === 'custom-mine'), true);
   assert.equal(migrated.delivery.popup.enabled, true);
   assert.equal(migrated.delivery.toast, undefined);
+});
+
+test('a fresh install starts with no sources until the user pastes ids', () => {
+  assert.equal(defaultConfig().sources.length, 0);
+});
+
+test('pasted x handles become AI sources', async () => {
+  const { results, errors } = await probeMany('@OpenAI\nAnthropicAI');
+  assert.equal(errors.length, 0);
+  assert.equal(results.length, 2);
+  for (const row of results) {
+    assert.equal(row.type, 'x');
+    assert.equal(row.section, 'aiNews');
+  }
+  assert.deepEqual(
+    results.map((row) => row.options.handle),
+    ['OpenAI', 'AnthropicAI'],
+  );
 });
 
 test('quiet focus sections hand spare rows to mail and school updates', () => {

@@ -544,11 +544,11 @@ window.__ModuleLoader__.load({
           h('div', { className: 'dbp-group-title' }, h('span', null, 'X 上的 AI 账号')),
           h(Chips, {
             items: x.map((source) => ({ id: source.id, label: `@${xHandleOf(source)}` })),
-            empty: '还没有关注任何账号',
+            empty: '还没有添加账号：粘贴一个 X ID 就能生成 AI 动态',
             onRemove,
             locked,
           }),
-          locked ? null : h(AddRow, { placeholder: '输入账号，例如 @OpenAI', onAdd: (value) => onAdd('x', value.replace(/^@/, '').trim()) }),
+          locked ? null : h(AddRow, { placeholder: '输入 X 账号 ID，例如 OpenAI', onAdd: (value) => onAdd('x', value.replace(/^@/, '').trim()) }),
         ),
         h(
           'div',
@@ -561,7 +561,7 @@ window.__ModuleLoader__.load({
               ? h('button', { type: 'button', className: 'dbp-linkbtn', onClick: onPickSteam }, '从 Steam 库选择')
               : null,
           ),
-          h(Chips, { items: steam.map((source) => ({ id: source.id, label: source.label })), empty: '还没有添加游戏', onRemove, locked }),
+          h(Chips, { items: steam.map((source) => ({ id: source.id, label: source.label })), empty: '还没有添加游戏：粘贴 appid 或从 Steam 库选择', onRemove, locked }),
           locked ? null : h(AddRow, { placeholder: '输入 Steam appid，例如 502500', onAdd: (value) => onAdd('steam', value) }),
         ),
         h(
@@ -570,7 +570,7 @@ window.__ModuleLoader__.load({
           h('div', { className: 'dbp-group-title' }, h('span', null, '服务器与监控')),
           h(Chips, {
             items: minecraft.map((source) => ({ id: source.id, label: minecraftAddressOf(source) })),
-            empty: '还没有添加服务器',
+            empty: '还没有添加服务器：填地址或监控页网址',
             onRemove,
             locked,
           }),
@@ -963,6 +963,36 @@ window.__ModuleLoader__.load({
               handledLines.add(line);
               continue;
             }
+            const handleMatch = /^@?([A-Za-z0-9_]{1,15})$/.exec(line);
+            if (handleMatch) {
+              const name = handleMatch[1];
+              const exists = detected.some(
+                (row) =>
+                  row.proposal &&
+                  row.proposal.type === 'x' &&
+                  String((row.proposal.options || {}).handle || '').toLowerCase() === name.toLowerCase(),
+              );
+              if (!exists) {
+                detected.push({
+                  key: `x-${detected.length}`,
+                  checked: true,
+                  label: `@${name}`,
+                  section: 'aiNews',
+                  secret: '',
+                  host: '',
+                  proposal: {
+                    type: 'x',
+                    section: 'aiNews',
+                    label: `@${name}`,
+                    options: { handle: name },
+                    note: 'X 账号：只读取这个账号最近的帖子（受 X 接口限流影响，抓不到时会说明原因）。',
+                    preview: { title: `@${name}`, subtitle: 'X 账号', items: [] },
+                  },
+                });
+              }
+              handledLines.add(line);
+              continue;
+            }
             const target = /^webcals?:\/\//i.test(line) ? line.replace(/^webcals?:\/\//i, 'https://') : line;
             if (!/^https?:\/\//i.test(target)) continue;
             if (detected.some((row) => row.proposal && row.proposal.url === target)) continue;
@@ -1279,7 +1309,7 @@ window.__ModuleLoader__.load({
                         onChange: (enabled) => onToggle(source, enabled),
                         title: source.enabled === false ? '启用' : '停用',
                       }),
-                      h(Btn, { variant: 'ghost', onClick: () => onRemove(source), disabled: locked, title: '移除' }, '×'),
+                      h(Btn, { variant: 'ghost', onClick: () => onRemove(source.id), disabled: locked, title: '移除' }, '×'),
                     ),
                   ),
                   editing
@@ -1491,7 +1521,13 @@ window.__ModuleLoader__.load({
           }
           const proposals =
             type === 'x'
-              ? [{ type: 'x', section: 'aiNews', label: `@${value}`, options: { handle: value } }]
+              ? (() => {
+                  const handleName = value.replace(/^@+/, '').trim();
+                  if (!/^[A-Za-z0-9_]{1,15}$/.test(handleName)) {
+                    throw new Error('X 账号 ID 应为 1-15 位字母、数字或下划线，例如 OpenAI');
+                  }
+                  return [{ type: 'x', section: 'aiNews', label: `@${handleName}`, options: { handle: handleName } }];
+                })()
               : [{ type: 'steam', section: 'gameNews', label: `Steam ${value}`, options: { appid: Number(value) } }];
           const result = await api('/sources', { proposals });
           setState((prev) => (prev ? { ...prev, sources: result.sources } : prev));
