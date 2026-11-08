@@ -15,6 +15,32 @@ window.__ModuleLoader__.load({
     const PANEL_ID = 'daily-brief';
     const API = 'api/daily-brief';
 
+    // DSH 的页面级快捷键会吞掉空格与回车（默认行为被 preventDefault），
+    // 导致面板里的输入框无法打空格、多行输入无法换行。
+    // 在冒泡阶段手动补上字符，避免改动宿主。
+    function insertTypingKey(event) {
+      const target = event.target;
+      const tag = target && target.tagName;
+      if (tag !== 'INPUT' && tag !== 'TEXTAREA') return;
+      if (target.type === 'color' || target.type === 'checkbox') return;
+      if (event.isComposing) return;
+      if (event.key !== ' ' && event.key !== 'Enter') return;
+      if (event.key === 'Enter' && tag === 'INPUT') return;
+      event.preventDefault();
+      const char = event.key === 'Enter' ? '\n' : ' ';
+      try {
+        target.focus();
+        if (typeof document.execCommand === 'function' && document.execCommand('insertText', false, char)) return;
+      } catch (err) {
+        /* fall through */
+      }
+      if (tag === 'TEXTAREA' && typeof target.setRangeText === 'function') {
+        const start = typeof target.selectionStart === 'number' ? target.selectionStart : target.value.length;
+        const end = typeof target.selectionEnd === 'number' ? target.selectionEnd : start;
+        target.setRangeText(char, start, end, 'end');
+        target.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    }
     const SECTION_ORDER = ['aiNews', 'gameNews', 'server', 'mail', 'feishu', 'managebac', 'calendar', 'tasks', 'custom'];
     const SECTION_LABEL = {
       aiNews: 'AI 动态',
@@ -1527,7 +1553,7 @@ window.__ModuleLoader__.load({
 
       return h(
         'div',
-        { className: 'dbp-root' },
+        { className: 'dbp-root', onKeyDown: insertTypingKey },
         h(
           'div',
           { className: 'dbp-page' },
