@@ -7,6 +7,7 @@ import { applyAiPolish, buildBriefing } from '../lib/engine/render/model.js';
 import { renderBriefingHtml } from '../lib/engine/render/html.js';
 import { defaultConfig, mergeConfig, personaFor } from '../lib/engine/config.js';
 import { splitInputs, guessMailSettings, probeMany, normalizeCalendarLink, calendarLike } from '../lib/engine/import/detect.js';
+import { selectIcsEvents } from '../lib/engine/collect/ics.js';
 import { relativeTime } from '../lib/engine/text.js';
 
 test('parses RSS 2.0 and Atom without namespace assumptions', () => {
@@ -140,6 +141,33 @@ test('briefing keeps at most five news rows with the 3/2 AI-game split', () => {
   assert.equal(briefing.sections.find((section) => section.id === 'gameNews').items.length, 2);
   assert.equal(briefing.sections.find((section) => section.id === 'server').server.online, true);
   assert.match(briefing.headline, /AI|游戏/);
+});
+
+test('school notices keep a seat even when ai and games are busy', () => {
+  const config = defaultConfig();
+  const makeItems = (prefix, count) =>
+    Array.from({ length: count }, (_, index) => ({
+      id: `${prefix}-${index}`,
+      title: `${prefix} ${index}`,
+      detail: '',
+      url: `https://example.com/${prefix}/${index}`,
+      date: new Date(Date.UTC(2026, 10, 8, index)).toISOString(),
+      meta: '',
+      badge: '',
+      tone: '',
+    }));
+  const results = [
+    { source: { id: 'x-openai', label: 'OpenAI', section: 'aiNews', enabled: true }, result: { status: 'ok', items: makeItems('ai', 6), note: '' } },
+    { source: { id: 'steam-1', label: 'Game', section: 'gameNews', enabled: true }, result: { status: 'ok', items: makeItems('game', 4), note: '' } },
+    { source: { id: 'mb-1', label: 'ManageBac', section: 'managebac', enabled: true }, result: { status: 'ok', items: makeItems('school', 2), note: '' } },
+    { source: { id: 'imap-1', label: '邮箱', section: 'mail', enabled: true }, result: { status: 'ok', items: makeItems('mail', 2), note: '' } },
+  ];
+  const briefing = buildBriefing({ config, results, dateKey: '2026-11-08' });
+  assert.equal(briefing.stats.items, 5);
+  const school = briefing.sections.find((section) => section.id === 'managebac');
+  assert.ok(school && school.items.length >= 1, 'school notices should be summarized');
+  assert.ok(briefing.sections.find((section) => section.id === 'aiNews').items.length <= 2);
+  assert.match(briefing.headline, /其他更新/);
 });
 
 test('v1 config migration keeps hand-added sources and drops old presets', () => {
@@ -315,4 +343,24 @@ test('calendar subscription links survive webcal and are recognized as ICS', () 
   assert.ok(calendarLike('https://calendar.google.com/calendar/ical/a/basic.ics', '/calendar/ical/a/basic.ics'));
   assert.ok(calendarLike('https://example.com/ical/feed', '/ical/feed'));
   assert.ok(!calendarLike('https://example.com/feed.xml', '/feed.xml'));
+});
+
+test('calendar events weeks ahead still make it into the brief', () => {
+  const now = Date.UTC(2026, 10, 9, 0, 0, 0);
+  const event = (title, days) => ({
+    type: 'VEVENT',
+    uid: title,
+    summary: { val: title },
+    start: new Date(now + days * 86400000),
+    end: new Date(now + days * 86400000 + 3600000),
+  });
+  const parsed = {
+    a: event('家长会', 1),
+    b: event('月度活动', 20),
+    c: event('远期考试', 90),
+  };
+  const near = selectIcsEvents(parsed, { now, daysAhead: 30, timezone: 'Asia/Shanghai' });
+  assert.deepEqual(near.map((item) => item.title), ['家长会', '月度活动']);
+  const wide = selectIcsEvents(parsed, { now, daysAhead: 120, timezone: 'Asia/Shanghai' });
+  assert.deepEqual(wide.map((item) => item.title), ['家长会', '月度活动', '远期考试']);
 });
