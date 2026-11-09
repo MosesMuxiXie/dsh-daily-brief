@@ -43,7 +43,7 @@ window.__ModuleLoader__.load({
     }
     const SECTION_ORDER = ['aiNews', 'gameNews', 'server', 'mail', 'feishu', 'managebac', 'calendar', 'tasks', 'custom'];
     const SECTION_LABEL = {
-      aiNews: 'AI 动态',
+      aiNews: '新闻',
       gameNews: '游戏',
       server: '服务器',
       mail: '邮箱',
@@ -104,6 +104,8 @@ window.__ModuleLoader__.load({
 .dbp-style-custom label { display:grid; gap:4px; font-size:11px; color:rgba(255,255,255,.55); }
 .dbp-color { width:46px; height:30px; padding:0; border:1px solid rgba(255,255,255,.14); border-radius:8px; background:#0b0b0e; }
 .dbp-textarea-sm { min-height:66px; }
+.dbp-style-count { font-size:10.5px; color:var(--dsw-alias-label-tertiary,#7b7b86); font-variant-numeric:tabular-nums; }
+.dbp-style-label { display:flex; align-items:baseline; justify-content:space-between; gap:8px; }
 .dbp-note { margin:-4px 0 14px; padding:9px 12px; border:1px solid var(--dsw-alias-border-l1,#33333a); border-radius:10px; background:var(--dsw-alias-bg-layer-2,#17171b); color:var(--dsw-alias-label-secondary); font-size:12px; line-height:1.5; }
 .dbp-note-inline { margin-top:9px; color:var(--dsw-alias-label-tertiary); font-size:11.5px; }
 .dbp-label { font-size:11px; font-weight:600; letter-spacing:.12em; color:var(--dsw-alias-label-tertiary); text-transform:uppercase; }
@@ -545,10 +547,10 @@ window.__ModuleLoader__.load({
         h(
           'div',
           { className: 'dbp-group' },
-          h('div', { className: 'dbp-group-title' }, h('span', null, 'X 上的 AI 账号')),
+          h('div', { className: 'dbp-group-title' }, h('span', null, 'X 上的新闻账号')),
           h(Chips, {
             items: x.map((source) => ({ id: source.id, label: `@${xHandleOf(source)}` })),
-            empty: '还没有添加账号：粘贴一个 X ID 就能生成 AI 动态',
+            empty: '还没有添加账号：粘贴一个 X ID 就能生成新闻',
             onRemove,
             locked,
           }),
@@ -584,6 +586,18 @@ window.__ModuleLoader__.load({
       );
     }
 
+    const CUSTOM_LIMITS = { customName: 24, customTagline: 60, customPrompt: 2000 };
+
+    function customDraftOf(persona) {
+      const source = persona || {};
+      return {
+        customName: source.customName || '',
+        customTagline: source.customTagline || '',
+        customAccent: source.customAccent || '',
+        customPrompt: source.customPrompt || '',
+      };
+    }
+
     const BUILTIN_STYLES = [
       { id: 'whale', zh: '鲸鱼娘', accent: '#4aa8ff', tagline: '蓝色鲸鱼少女，聪明但懒，傲娇又甜', emoji: '🐋', notes: ['称你为「主人」', '自称「本鲸」', '拒绝被说胖', '材料不足会直说'] },
       { id: 'assistant', zh: '助手', accent: '#8ab4f8', tagline: '先结论、后背景，不讲废话', emoji: '🗂', notes: ['结论先行', '短句', '不寒暄', '标注不确定'] },
@@ -597,11 +611,70 @@ window.__ModuleLoader__.load({
       const persona = config.persona || {};
       const styles = Array.isArray(config.personaStyles) && config.personaStyles.length > 0 ? config.personaStyles : BUILTIN_STYLES;
       const current = persona.preset || 'whale';
-      const patch = (extra) => onSave({ persona: { ...persona, ...extra } });
-      const accent = /^#[0-9a-f]{6}$/i.test(persona.customAccent || '') ? persona.customAccent : '#9a8cff';
+      const personaRef = useRef(persona);
+      personaRef.current = persona;
+      const [draft, setDraft] = useState(() => customDraftOf(persona));
+      const draftRef = useRef(draft);
+      draftRef.current = draft;
+      const cardRef = useRef(null);
+      const saveTimer = useRef(null);
+      const composingRef = useRef(false);
+      const dirtyRef = useRef(false);
+      const accent = /^#[0-9a-f]{6}$/i.test(draft.customAccent || '') ? draft.customAccent : '#9a8cff';
+
+      const savePersona = useCallback(
+        (extra = {}) => {
+          dirtyRef.current = false;
+          onSave({ persona: { ...personaRef.current, ...draftRef.current, ...extra } });
+        },
+        [onSave],
+      );
+
+      const flush = useCallback(() => {
+        window.clearTimeout(saveTimer.current);
+        saveTimer.current = null;
+        if (dirtyRef.current) savePersona();
+      }, [savePersona]);
+
+      useEffect(() => () => window.clearTimeout(saveTimer.current), []);
+
+      // The save response and the 30s refresh echo the server-normalized value
+      // back. Adopt it only while the user is not editing this card, so typing
+      // (and the Chinese IME) is never interrupted by a re-render.
+      useEffect(() => {
+        const incoming = customDraftOf(persona);
+        const same = Object.keys(incoming).every((key) => incoming[key] === draftRef.current[key]);
+        if (same || composingRef.current) return;
+        const active = document.activeElement;
+        if (cardRef.current && active && cardRef.current.contains(active)) return;
+        setDraft(incoming);
+        draftRef.current = incoming;
+      }, [persona.customName, persona.customTagline, persona.customAccent, persona.customPrompt]);
+
+      const edit = (patch) => {
+        const next = { ...draftRef.current, ...patch };
+        draftRef.current = next;
+        setDraft(next);
+        dirtyRef.current = true;
+        window.clearTimeout(saveTimer.current);
+        if (composingRef.current) return;
+        saveTimer.current = window.setTimeout(flush, 500);
+      };
+
+      const finishEdit = () => {
+        window.clearTimeout(saveTimer.current);
+        saveTimer.current = null;
+        if (dirtyRef.current) savePersona();
+      };
+
+      const pickStyle = (id) => {
+        window.clearTimeout(saveTimer.current);
+        saveTimer.current = null;
+        savePersona({ preset: id });
+      };
       return h(
         'div',
-        { className: 'dbp-card dbp-card-quiet' },
+        { className: 'dbp-card dbp-card-quiet', ref: cardRef },
         h('div', { className: 'dbp-label' }, '简报风格'),
         h(
           'div',
@@ -616,7 +689,7 @@ window.__ModuleLoader__.load({
                 className: `dbp-style${current === style.id ? ' is-on' : ''}`,
                 style: { '--tone': style.accent || '#8ab4f8' },
                 disabled: locked,
-                onClick: () => patch({ preset: style.id }),
+                onClick: () => pickStyle(style.id),
               },
               h('span', { className: 'dbp-style-emoji' }, builtin.emoji || '✦'),
               h('span', { className: 'dbp-style-name' }, style.zh || style.id),
@@ -643,53 +716,96 @@ window.__ModuleLoader__.load({
               h(
                 'label',
                 null,
-                '名字',
+                h(
+                  'span',
+                  { className: 'dbp-style-label' },
+                  '名字',
+                  h('span', { className: 'dbp-style-count' }, `${draft.customName.length}/${CUSTOM_LIMITS.customName}`),
+                ),
                 h('input', {
                   className: 'dbp-input',
-                  value: persona.customName || '',
+                  value: draft.customName,
+                  maxLength: CUSTOM_LIMITS.customName,
                   spellCheck: false,
                   disabled: locked,
                   placeholder: '例如 深夜电台',
-                  onChange: (event) => patch({ customName: event.target.value }),
+                  onCompositionStart: () => {
+                    composingRef.current = true;
+                  },
+                  onCompositionEnd: (event) => {
+                    composingRef.current = false;
+                    edit({ customName: event.target.value });
+                  },
+                  onChange: (event) => edit({ customName: event.target.value }),
+                  onBlur: finishEdit,
                 }),
               ),
               h(
                 'label',
                 null,
-                '一句话',
+                h(
+                  'span',
+                  { className: 'dbp-style-label' },
+                  '一句话',
+                  h('span', { className: 'dbp-style-count' }, `${draft.customTagline.length}/${CUSTOM_LIMITS.customTagline}`),
+                ),
                 h('input', {
                   className: 'dbp-input',
-                  value: persona.customTagline || '',
+                  value: draft.customTagline,
+                  maxLength: CUSTOM_LIMITS.customTagline,
                   spellCheck: false,
                   disabled: locked,
                   placeholder: '例如 慢慢说，不着急',
-                  onChange: (event) => patch({ customTagline: event.target.value }),
+                  onCompositionStart: () => {
+                    composingRef.current = true;
+                  },
+                  onCompositionEnd: (event) => {
+                    composingRef.current = false;
+                    edit({ customTagline: event.target.value });
+                  },
+                  onChange: (event) => edit({ customTagline: event.target.value }),
+                  onBlur: finishEdit,
                 }),
               ),
               h(
                 'label',
                 null,
-                '主色',
+                h('span', { className: 'dbp-style-label' }, '主色'),
                 h('input', {
                   className: 'dbp-color',
                   type: 'color',
                   value: accent,
                   disabled: locked,
-                  onChange: (event) => patch({ customAccent: event.target.value }),
+                  onChange: (event) => edit({ customAccent: event.target.value }),
+                  onBlur: finishEdit,
                 }),
               ),
               h(
                 'label',
                 null,
-                '语气',
+                h(
+                  'span',
+                  { className: 'dbp-style-label' },
+                  '语气',
+                  h('span', { className: 'dbp-style-count' }, `${draft.customPrompt.length}/${CUSTOM_LIMITS.customPrompt}`),
+                ),
                 h('textarea', {
                   className: 'dbp-textarea dbp-textarea-sm',
                   rows: 3,
-                  value: persona.customPrompt || '',
+                  value: draft.customPrompt,
+                  maxLength: CUSTOM_LIMITS.customPrompt,
                   spellCheck: false,
                   disabled: locked,
                   placeholder: '例如：语气温柔、轻快，句尾偶尔带「呀」',
-                  onChange: (event) => patch({ customPrompt: event.target.value }),
+                  onCompositionStart: () => {
+                    composingRef.current = true;
+                  },
+                  onCompositionEnd: (event) => {
+                    composingRef.current = false;
+                    edit({ customPrompt: event.target.value });
+                  },
+                  onChange: (event) => edit({ customPrompt: event.target.value }),
+                  onBlur: finishEdit,
                 }),
               ),
             )
@@ -1904,7 +2020,7 @@ window.__ModuleLoader__.load({
           h(
             'div',
             { className: 'dbp-grid' },
-            h(StyleCard, { config, onSave: (patch) => saveDebounced(patch), locked: stale }),
+            h(StyleCard, { config, onSave: (patch) => save(patch, { quiet: true }), locked: stale }),
             h(RhythmCard, {
               config,
               onSave: (patch) => saveDebounced(patch),

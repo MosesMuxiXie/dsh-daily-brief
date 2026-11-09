@@ -5,7 +5,7 @@ import { parseFeedXml } from '../lib/engine/collect/feed.js';
 import { guessJsonMapping, getByPath } from '../lib/engine/collect/json.js';
 import { applyAiPolish, buildBriefing } from '../lib/engine/render/model.js';
 import { renderBriefingHtml } from '../lib/engine/render/html.js';
-import { defaultConfig, mergeConfig, personaFor } from '../lib/engine/config.js';
+import { defaultConfig, mergeConfig, personaFor, SECTION_DEFS } from '../lib/engine/config.js';
 import { splitInputs, guessMailSettings, probeMany, normalizeCalendarLink, calendarLike } from '../lib/engine/import/detect.js';
 import { selectIcsEvents } from '../lib/engine/collect/ics.js';
 import { relativeTime } from '../lib/engine/text.js';
@@ -132,7 +132,7 @@ test('Microsoft mailboxes become one Graph source with method and needed info', 
   assert.equal(gmail.results[0].account.host, 'imap.gmail.com');
 });
 
-test('briefing fills up to ten news rows with the 4/3 AI-game split', () => {
+test('briefing fills up to ten news rows with the 4/3 news-game split', () => {
   const config = defaultConfig();
   const makeItems = (prefix, count) =>
     Array.from({ length: count }, (_, index) => ({
@@ -163,10 +163,10 @@ test('briefing fills up to ten news rows with the 4/3 AI-game split', () => {
   assert.equal(briefing.sections.find((section) => section.id === 'aiNews').items.length, 6);
   assert.equal(briefing.sections.find((section) => section.id === 'gameNews').items.length, 4);
   assert.equal(briefing.sections.find((section) => section.id === 'server').server.online, true);
-  assert.match(briefing.headline, /AI|游戏/);
+  assert.match(briefing.headline, /新闻|游戏/);
 });
 
-test('school notices keep a seat even when ai and games are busy', () => {
+test('school notices keep a seat even when news and games are busy', () => {
   const config = defaultConfig();
   const makeItems = (prefix, count) =>
     Array.from({ length: count }, (_, index) => ({
@@ -215,7 +215,7 @@ test('a fresh install starts with no sources until the user pastes ids', () => {
   assert.equal(defaultConfig().sources.length, 0);
 });
 
-test('pasted x handles become AI sources', async () => {
+test('pasted x handles become news sources', async () => {
   const { results, errors } = await probeMany('@OpenAI\nAnthropicAI');
   assert.equal(errors.length, 0);
   assert.equal(results.length, 2);
@@ -227,6 +227,36 @@ test('pasted x handles become AI sources', async () => {
     results.map((row) => row.options.handle),
     ['OpenAI', 'AnthropicAI'],
   );
+});
+
+test('news is a general section instead of an AI-only bucket', () => {
+  const news = SECTION_DEFS.find((section) => section.id === 'aiNews');
+  assert.equal(news.zh, '新闻');
+  assert.equal(news.en, 'News');
+
+  for (const type of ['rss', 'atom', 'json', 'page']) {
+    const config = mergeConfig({ sources: [{ type, label: type, url: 'https://example.com/feed' }] });
+    assert.equal(config.sources[0].section, 'aiNews', `${type} should default to news`);
+  }
+
+  const gamefeed = mergeConfig({ sources: [{ type: 'steam', label: 'Game', options: { appid: '502500' } }] });
+  assert.equal(gamefeed.sources[0].section, 'gameNews');
+});
+
+test('custom persona fields clamp to the editor limits', () => {
+  const config = mergeConfig({
+    persona: {
+      preset: 'custom',
+      customName: '名'.repeat(40),
+      customTagline: '签'.repeat(80),
+      customPrompt: '语'.repeat(2100),
+      customAccent: '#GGGGGG',
+    },
+  });
+  assert.equal(config.persona.customName.length, 24);
+  assert.equal(config.persona.customTagline.length, 60);
+  assert.equal(config.persona.customPrompt.length, 2000);
+  assert.equal(config.persona.customAccent, '');
 });
 
 test('quiet focus sections hand spare rows to mail and school updates', () => {
@@ -253,7 +283,7 @@ test('quiet focus sections hand spare rows to mail and school updates', () => {
   const mail = briefing.sections.find((section) => section.id === 'mail');
   assert.ok(mail, 'mail section should appear when it takes the spare rows');
   assert.ok(mail.items.length >= 2);
-  assert.match(briefing.headline, /AI|游戏|其他/);
+  assert.match(briefing.headline, /新闻|游戏|其他/);
 });
 
 test('relative time never claims a future minute for a just-now item', () => {
