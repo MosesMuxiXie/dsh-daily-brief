@@ -109,6 +109,29 @@ test('import helpers split lines and suggest IMAP settings', () => {
   assert.equal(mail.port, 993);
 });
 
+test('Microsoft mailboxes become one Graph source with method and needed info', async () => {
+  for (const address of ['me@outlook.com', 'me@hotmail.com', 'me@live.cn', 'me@msn.com']) {
+    const { results, errors } = await probeMany(address);
+    assert.deepEqual(errors, [], address);
+    assert.equal(results.length, 1, address);
+    const [proposal] = results;
+    assert.equal(proposal.type, 'graph', address);
+    assert.equal(proposal.section, 'mail', address);
+    assert.deepEqual(proposal.requires, ['microsoft'], address);
+    assert.equal(proposal.account.user, address);
+    assert.match(proposal.note, /Microsoft Graph/);
+    assert.match(proposal.note, /方法/);
+    assert.match(proposal.note, /需要/);
+    assert.match(proposal.note, /客户端/);
+    assert.match(proposal.note, /devicelogin/);
+  }
+  const gmail = await probeMany('you@gmail.com');
+  assert.deepEqual(gmail.errors, []);
+  assert.equal(gmail.results.length, 1);
+  assert.equal(gmail.results[0].type, 'imap');
+  assert.equal(gmail.results[0].account.host, 'imap.gmail.com');
+});
+
 test('briefing fills up to ten news rows with the 4/3 AI-game split', () => {
   const config = defaultConfig();
   const makeItems = (prefix, count) =>

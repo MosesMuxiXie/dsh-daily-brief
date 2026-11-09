@@ -216,6 +216,10 @@ window.__ModuleLoader__.load({
 .dbp-src-flag { font-size:10.5px; color:var(--dsw-alias-state-warn-primary,#b57a2e); white-space:nowrap; }
 .dbp-src-actions { display:flex; align-items:center; gap:2px; }
 .dbp-src-actions .dbp-btn-ghost { padding:4px 6px; font-size:11.5px; }
+.dbp-graph-help { margin:8px 0 2px; }
+.dbp-graph-help > div + div { margin-top:4px; }
+.dbp-graph-code { margin:12px auto 4px; padding:14px 16px; max-width:320px; border:1px dashed var(--dsw-alias-border-l2,#3a3a42); border-radius:10px; font:600 26px/1.2 ui-monospace,Consolas,monospace; letter-spacing:.16em; text-align:center; user-select:all; }
+.dbp-graph-step { margin-top:10px; font-size:12px; line-height:1.7; color:var(--dsw-alias-label-secondary,#b9b9c3); }
 `;
 
     const TAG = 'daily-brief-panel-css';
@@ -904,13 +908,141 @@ window.__ModuleLoader__.load({
       );
     }
 
+    // Microsoft Graph uses a device-code flow: the host starts it, we show the
+    // 8-character code, and the browser polls until the user approves in
+    // Microsoft's own page. Reused by the add dialog and the source card.
+    function GraphConnect(props) {
+      const { sourceId, label, account, onDone, onClose } = props;
+      const [flow, setFlow] = useState(null);
+      const [status, setStatus] = useState('starting');
+      const [error, setError] = useState('');
+      const [nonce, setNonce] = useState(0);
+      const alive = useRef(true);
+
+      useEffect(() => {
+        alive.current = true;
+        let timer = null;
+        const poll = async (interval) => {
+          if (!alive.current) return;
+          try {
+            const result = await api('/graph/poll', { sourceId });
+            if (!alive.current) return;
+            if (result.status === 'ok') {
+              setStatus('ok');
+              timer = window.setTimeout(() => {
+                if (alive.current && onDone) onDone();
+              }, 900);
+              return;
+            }
+            if (result.status === 'expired' || result.status === 'error') {
+              setStatus('error');
+              setError(result.error || '授权没有完成，请重试。');
+              return;
+            }
+            const next = result.status === 'slow_down' ? interval + 5 : interval;
+            timer = window.setTimeout(() => poll(next), next * 1000);
+          } catch (err) {
+            if (!alive.current) return;
+            setStatus('error');
+            setError(err.message || String(err));
+          }
+        };
+        (async () => {
+          try {
+            const result = await api('/graph/start', { sourceId });
+            if (!alive.current) return;
+            setFlow(result);
+            setStatus('waiting');
+            const interval = Math.max(3, Number(result.interval) || 5);
+            timer = window.setTimeout(() => poll(interval), interval * 1000);
+          } catch (err) {
+            if (!alive.current) return;
+            setStatus('error');
+            setError(err.message || String(err));
+          }
+        })();
+        return () => {
+          alive.current = false;
+          if (timer) window.clearTimeout(timer);
+        };
+      }, [sourceId, nonce]);
+
+      const minutes = flow && flow.expiresIn ? Math.max(1, Math.round(Number(flow.expiresIn) / 60)) : 15;
+      const loginUrl = (flow && flow.verificationUri) || 'https://microsoft.com/devicelogin';
+      return h(
+        Modal,
+        {
+          title: '连接 Microsoft',
+          sub: `给 ${account || label || '这个邮箱'} 授权 Microsoft Graph：只读邮件、日历与 To Do，一次授权长期有效，密码不会交给插件。`,
+        },
+        status === 'starting' ? h('p', { className: 'dbp-quiet' }, '正在向 Microsoft 申请设备代码…') : null,
+        flow && status !== 'starting'
+          ? h(
+              'div',
+              null,
+              h('div', { className: 'dbp-graph-step' }, '1. 点下面的按钮打开微软登录页，输入这个代码：'),
+              h('div', { className: 'dbp-graph-code' }, flow.userCode),
+              h(Btn, { variant: 'primary', onClick: () => window.open(loginUrl, '_blank', 'noopener') }, '打开 microsoft.com/devicelogin'),
+              h('div', { className: 'dbp-graph-step' }, `2. 用 ${account || label || '这个 Microsoft 邮箱'} 登录，并同意只读权限。代码约 ${minutes} 分钟内有效。`),
+              h('div', { className: 'dbp-graph-step' }, '3. 回到这里等状态变成「已连接」，不用再点别的。'),
+            )
+          : null,
+        status === 'waiting' ? h('div', { className: 'dbp-modal-ok' }, '等待授权…授权完成后会自动继续。') : null,
+        status === 'ok' ? h('div', { className: 'dbp-modal-ok' }, '已连接：之后会按设置自动读取这个邮箱。') : null,
+        error ? h('div', { className: 'dbp-modal-err' }, error) : null,
+        h(
+          'div',
+          { className: 'dbp-modal-actions' },
+          error
+            ? h(
+                Btn,
+                {
+                  onClick: () => {
+                    setError('');
+                    setFlow(null);
+                    setStatus('starting');
+                    setNonce((value) => value + 1);
+                  },
+                },
+                '重新开始',
+              )
+            : null,
+          h('div', { className: 'dbp-line-spacer' }),
+          h(Btn, { onClick: onClose }, '关闭'),
+        ),
+      );
+    }
+
     function AddSourceDialog(props) {
-      const { onClose, onAdded, locked } = props;
+      const { onClose, onAdded, locked, graphClientId = '', onSaveClientId } = props;
       const [text, setText] = useState('');
       const [busy, setBusy] = useState('');
       const [rows, setRows] = useState([]);
       const [errors, setErrors] = useState([]);
       const [message, setMessage] = useState('');
+      const [clientId, setClientId] = useState(graphClientId);
+      const [connect, setConnect] = useState(null);
+      const [addedCount, setAddedCount] = useState(0);
+      const clientIdTimer = useRef(null);
+
+      useEffect(() => () => window.clearTimeout(clientIdTimer.current), []);
+
+      // The Azure application (client) ID is shared by every Microsoft mailbox,
+      // so save it once as soon as the user types it instead of losing it when
+      // the dialog closes.
+      const updateClientId = (value) => {
+        setClientId(value);
+        window.clearTimeout(clientIdTimer.current);
+        clientIdTimer.current = window.setTimeout(() => {
+          if (typeof onSaveClientId === 'function') onSaveClientId(value).catch(() => {});
+        }, 700);
+      };
+
+      const flushClientId = () => {
+        window.clearTimeout(clientIdTimer.current);
+        const value = String(clientId || '').trim();
+        if (typeof onSaveClientId === 'function') onSaveClientId(value).catch(() => {});
+      };
 
       const probe = async () => {
         if (busy) return;
@@ -921,7 +1053,7 @@ window.__ModuleLoader__.load({
           const result = await api('/probe', { text }, 120000);
           const detected = (result.results || []).map((proposal, index) => ({
             key: index,
-            checked: proposal.ok !== false && !requiresOf(proposal).includes('microsoft'),
+            checked: proposal.ok !== false,
             label: proposal.label || '',
             section: proposal.section || 'custom',
             secret: '',
@@ -1082,7 +1214,26 @@ window.__ModuleLoader__.load({
         }
         setBusy('add');
         setErrors([]);
+        const microsoftPicked = picked.some((row) => requiresOf(row.proposal).includes('microsoft'));
+        if (microsoftPicked) {
+          const id = String(clientId || '').trim();
+          if (id === '') {
+            setBusy('');
+            setErrors(['Microsoft 邮箱要先填写 Azure 应用（客户端）ID：按行内 1–4 步注册后复制「应用程序(客户端) ID」。']);
+            return;
+          }
+          if (typeof onSaveClientId === 'function') {
+            try {
+              await onSaveClientId(id);
+            } catch (err) {
+              setBusy('');
+              setErrors([`保存 Microsoft 客户端 ID 失败：${err.message || String(err)}`]);
+              return;
+            }
+          }
+        }
         let added = 0;
+        let graphTarget = null;
         const failures = [];
         for (const row of picked) {
           try {
@@ -1100,6 +1251,13 @@ window.__ModuleLoader__.load({
               const headers = value.startsWith('{') ? value : JSON.stringify({ cookie: value });
               await api('/secret', { sourceId: created.id, field: 'headers', value: headers });
             }
+            if (proposal.type === 'graph') {
+              graphTarget = {
+                id: created.id,
+                label: created.label || proposal.label,
+                account: (proposal.account || {}).user || '',
+              };
+            }
             added += 1;
           } catch (err) {
             failures.push(`${row.label || '来源'}：${err.message || String(err)}`);
@@ -1111,6 +1269,11 @@ window.__ModuleLoader__.load({
           setMessage(`已添加 ${added} 个，${failures.length} 个失败`);
           return;
         }
+        if (graphTarget) {
+          setAddedCount(added);
+          setConnect(graphTarget);
+          return;
+        }
         onAdded(added);
         onClose();
       };
@@ -1119,7 +1282,7 @@ window.__ModuleLoader__.load({
         Modal,
         {
           title: '添加来源',
-          sub: '粘贴网址、邮箱地址或服务器地址，每行一个。支持订阅源、网页、日历 ICS、邮箱（IMAP）、ManageBac（.com / .cn）、飞书、Steam 与 Minecraft。',
+          sub: '粘贴网址、邮箱地址或服务器地址，每行一个。支持订阅源、网页、日历 ICS、邮箱（Gmail / QQ / 学校邮箱用 IMAP，Outlook / Hotmail / Live 用 Microsoft Graph 授权）、ManageBac（.com / .cn）、飞书、Steam 与 Minecraft。',
         },
         locked ? h('div', { className: 'dbp-note' }, 'DSH 主进程还停在旧版插件，重启一次后再添加。') : null,
         h(
@@ -1128,14 +1291,15 @@ window.__ModuleLoader__.load({
           h('div', null, '· 订阅源：网址本身就提供 RSS/Atom（常见 .xml、.rss，或 feed 路径）'),
           h('div', null, '· 日历：以 .ics 结尾的「订阅链接」（Google 日历 → 设置 → 该日历 → 私密地址 iCal；Outlook / 飞书 / ManageBac 同理）'),
           h('div', null, '· 服务器：地址:端口（如 play.example.com:25565），或 http(s):// 监控页'),
-          h('div', null, '· 邮箱 / 学校：邮箱地址，或 ManageBac 网页地址（需要登录 Cookie 或 ICS 链接）'),
+          h('div', null, '· 邮箱：Gmail / QQ / 学校邮箱用 IMAP（密码或授权码）；Outlook / Hotmail / Live 必须用 Microsoft Graph，按下面的步骤操作'),
+          h('div', null, '· ManageBac：粘贴学校 ManageBac 网页地址（.com / .cn），需要登录 Cookie 或 ICS 订阅链接'),
           h('div', null, '提示：webcal:// 开头的日历链接会自动按 https:// 处理。'),
         ),
         h('textarea', {
           className: 'dbp-textarea',
           value: text,
           spellCheck: false,
-          placeholder: '例如：\nhttps://www.managebac.com/student/\nme@school.edu\nhttps://example.com/feed.xml\nplay.example.com:25565',
+          placeholder: '例如：\nhttps://www.managebac.com/student/\nme@outlook.com\nme@school.edu\nhttps://example.com/feed.xml\nplay.example.com:25565',
           onChange: (event) => setText(event.target.value),
         }),
         h(
@@ -1159,7 +1323,7 @@ window.__ModuleLoader__.load({
             h('input', {
               type: 'checkbox',
               checked: row.checked,
-              disabled: microsoft || locked,
+              disabled: locked,
               onChange: (event) => patchRow(row.key, { checked: event.target.checked }),
             }),
             h(
@@ -1184,10 +1348,29 @@ window.__ModuleLoader__.load({
                   },
                   SECTION_ORDER.map((id) => h('option', { key: id, value: id }, SECTION_LABEL[id] || id)),
                 ),
-                microsoft ? h('span', { className: 'dbp-src-flag' }, '需要 Microsoft 授权，暂不支持') : null,
               ),
-              preview.subtitle || proposal.note
+              !microsoft && (preview.subtitle || proposal.note)
                 ? h('div', { className: 'dbp-proposal-note' }, [preview.subtitle, proposal.note].filter(Boolean).join(' · '))
+                : null,
+              microsoft
+                ? h(
+                    'div',
+                    { className: 'dbp-hint dbp-graph-help' },
+                    h('div', null, '方法：Microsoft Graph 设备代码授权。微软已在 2024-09 停用 Outlook / Hotmail / Live 的 IMAP 密码登录，不能像 Gmail 那样填授权码。'),
+                    h('div', null, '需要准备：① 这个 Microsoft 邮箱地址 ② Azure 应用（客户端）ID ③ 在 microsoft.com/devicelogin 输入一次设备代码。'),
+                    h('div', null, '客户端 ID 怎么拿：portal.azure.com →「应用注册 / App registrations」→「新注册」→ 账户类型选「个人 Microsoft 账户」或「任何组织目录中的账户和个人 Microsoft 账户」→ 注册后到「身份验证 / Authentication」把「允许公共客户端流 / Allow public client flows」设为「是」→ 复制「应用程序(客户端) ID」。免费，不需要 Azure 订阅。'),
+                    h('div', null, '接下来：把 ID 填到下面 → 勾选这一行 → 点「加入」→ 在弹出的窗口里按代码完成登录。'),
+                  )
+                : null,
+              microsoft
+                ? h('div', { className: 'dbp-secret' }, h('input', {
+                    className: 'dbp-input',
+                    value: clientId,
+                    spellCheck: false,
+                    placeholder: 'Azure 应用（客户端）ID，例如 00000000-0000-0000-0000-000000000000',
+                    onChange: (event) => updateClientId(event.target.value),
+                    onBlur: flushClientId,
+                  }))
                 : null,
               need.includes('imapHost')
                 ? h('div', { className: 'dbp-secret' }, h('input', {
@@ -1236,19 +1419,37 @@ window.__ModuleLoader__.load({
             ),
           );
         }),
+        connect
+          ? h(GraphConnect, {
+              sourceId: connect.id,
+              label: connect.label,
+              account: connect.account,
+              onDone: () => {
+                setConnect(null);
+                onAdded(addedCount);
+                onClose();
+              },
+              onClose: () => {
+                setConnect(null);
+                onAdded(addedCount);
+                onClose();
+              },
+            })
+          : null,
       );
     }
 
     function SourcesCard(props) {
-      const { sources, secrets, locked, onAdd, onTest, onToggle, onRemove, onSecret } = props;
+      const { sources, secrets, locked, onAdd, onTest, onToggle, onRemove, onSecret, onConnected } = props;
       const [edit, setEdit] = useState(null);
       const [value, setValue] = useState('');
       const [busy, setBusy] = useState(false);
       const [err, setErr] = useState('');
+      const [connect, setConnect] = useState(null);
       const list = Array.isArray(sources) ? sources : [];
       if (list.length === 0) return null;
       const secretFor = (source) => (secrets && secrets.sources ? secrets.sources[source.id] || {} : {});
-      return h(
+      const details = h(
         'details',
         { className: 'dbp-details' },
         h(
@@ -1271,6 +1472,7 @@ window.__ModuleLoader__.load({
                 const status = secretFor(source);
                 const needPassword = source.type === 'imap' && status.password === false;
                 const needCookie = (source.type === 'page' || source.type === 'managebac') && status.cookie === false;
+                const needGraph = source.type === 'graph' && status.token === false;
                 const field = needPassword ? 'password' : needCookie ? 'headers' : '';
                 const editing = Boolean(edit && edit.id === source.id);
                 return h(
@@ -1284,9 +1486,13 @@ window.__ModuleLoader__.load({
                     h('span', { className: 'dbp-src-type' }, TYPE_LABEL[source.type] || source.type),
                     needPassword ? h('span', { className: 'dbp-src-flag' }, '未填密码') : null,
                     needCookie ? h('span', { className: 'dbp-src-flag' }, '未填 Cookie') : null,
+                    needGraph ? h('span', { className: 'dbp-src-flag' }, '未连接 Microsoft') : null,
                     h(
                       'div',
                       { className: 'dbp-src-actions' },
+                      needGraph
+                        ? h(Btn, { variant: 'primary', onClick: () => setConnect({ ...source }), disabled: locked }, '连接')
+                        : null,
                       field
                         ? h(
                             Btn,
@@ -1355,11 +1561,29 @@ window.__ModuleLoader__.load({
           h(
             'div',
             { className: 'dbp-line', style: { borderBottom: 0, paddingBottom: 0 } },
-            h('div', { className: 'dbp-line-hint' }, '登录类来源（邮箱 / ManageBac / 飞书）会出现「未填 Cookie」提示，点该行的「补填」粘贴登录 Cookie 即可；ManageBac 也可以改用日历 ICS 订阅链接。'),
+            h('div', { className: 'dbp-line-hint' }, '登录类来源（邮箱 / ManageBac / 飞书）会出现「未填 Cookie」提示，点该行的「补填」粘贴登录 Cookie 即可；Microsoft 邮箱会出现「未连接 Microsoft」，点该行的「连接」完成一次设备代码授权。'),
             h('div', { className: 'dbp-line-spacer' }),
             h(Btn, { variant: 'ghost', onClick: onAdd, disabled: locked }, '添加来源'),
           ),
         ),
+      );
+      return h(
+        React.Fragment,
+        null,
+        details,
+        connect
+          ? h(GraphConnect, {
+              sourceId: connect.id,
+              label: connect.label,
+              account: (connect.account || {}).user || '',
+              onDone: () => {
+                const source = connect;
+                setConnect(null);
+                if (typeof onConnected === 'function') onConnected(source);
+              },
+              onClose: () => setConnect(null),
+            })
+          : null,
       );
     }
 
@@ -1426,6 +1650,13 @@ window.__ModuleLoader__.load({
         },
         [save],
       );
+
+      const saveGraphClientId = useCallback(async (value) => {
+        if (staleRef.current) throw new Error('先重启一次 DSH，设置才能保存');
+        const result = await api('/config', { patch: { graph: { clientId: String(value || '').trim() } } });
+        setState((prev) => (prev ? { ...prev, config: result.config } : prev));
+        return result.config;
+      }, []);
 
       const generate = useCallback(async () => {
         if (busy) return;
@@ -1711,6 +1942,10 @@ window.__ModuleLoader__.load({
               onToggle: toggleSource,
               onRemove: removeSource,
               onSecret: saveSecret,
+              onConnected: async (source) => {
+                await refresh();
+                flashWith(`${source.label || 'Microsoft 邮箱'}：已连接`);
+              },
             }),
             h(HistoryCard, { briefings, onOpen: popup }),
           ),
@@ -1721,6 +1956,8 @@ window.__ModuleLoader__.load({
           addOpen
             ? h(AddSourceDialog, {
                 locked: stale,
+                graphClientId: (state.config && state.config.graph && state.config.graph.clientId) || '',
+                onSaveClientId: saveGraphClientId,
                 onClose: () => setAddOpen(false),
                 onAdded: (count) => {
                   flashWith(`已添加 ${count} 个来源`);

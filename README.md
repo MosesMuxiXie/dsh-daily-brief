@@ -71,6 +71,7 @@
 | 粘贴的内容 | 识别结果 |
 | --- | --- |
 | `you@gmail.com`、`me@school.edu` | 邮箱（IMAP）。Gmail 用应用专用密码；学校邮箱识别不出服务器时会多出一个 IMAP 服务器输入框 |
+| `me@outlook.com`、`me@hotmail.com`、`me@live.com` | Microsoft 邮箱（Graph 授权）。不能填密码，需要自备 Azure 应用（客户端）ID，见下面「Microsoft 邮箱要填什么」 |
 | `https://…/feed.xml`、`.ics`、任意网页 | 订阅源 / 日历 / 网页抓取（可加关键词过滤） |
 | `https://www.managebac.com/...`、`https://…managebac.cn/...` | ManageBac 通知（.com / .cn 及学校子域；需要登录 Cookie，或日历订阅链接） |
 | `https://…feishu.cn/docx|wiki|calendar/...` | 飞书文档 / 知识库 / 日历；前端渲染抓不到时建议用 ICS 订阅 |
@@ -81,7 +82,7 @@
 - 密码、授权码、Cookie 保存在本机 DPAPI 加密的 secrets 文件里（`…\daily-brief\secrets\`），不写进 `config.json`。
 - 网页类来源会自动带上你填的 Cookie 再抓取。
 - 10 条预算：AI 4–5 条、游戏 2–3 条；有内容的「其他板块」（学校通知、邮箱、飞书、日历等）最多 4 个各保底 1 条，剩余空位再回填给 AI 和游戏，服务器状态不占名额。
-- 「来源」卡可以逐个测试、启停、删除；缺登录信息时该行会出现「未填 Cookie / 未填密码」和「补填」按钮，就地粘贴即可，不用删除重加。
+- 「来源」卡可以逐个测试、启停、删除；缺登录信息时该行会出现「未填 Cookie / 未填密码」和「补填」按钮，Microsoft 邮箱则显示「未连接 Microsoft」和「连接」按钮，就地处理即可，不用删除重加。
 - 删除来源会同时清掉该来源保存的密码/Cookie。
 
 ### ManageBac 要填什么
@@ -92,6 +93,36 @@
 2. **网页通知（要 Cookie）**：粘贴学校 ManageBac 的网址（如 `https://www.managebac.com/student/`）→ 识别为「ManageBac」→ 在 Cookie 输入框里粘贴登录 Cookie（浏览器登录后按 F12 → Network → 刷新 → 点任意请求 → 复制 Request Headers 里 `cookie` 冒号后的整段值）。也可以先留空加入，之后在「来源」卡里点「补填」。
 
 Cookie 只保存在本机加密文件里；过期后重新补填一次即可。
+
+### Microsoft 邮箱（Outlook / Hotmail / Live）要填什么
+
+微软已在 2024-09-16 停用 Outlook.com / Hotmail / Live / MSN 的基本认证，`@outlook.com`、`@hotmail.com`、`@live.com`（含 `.cn`）不能再用「邮箱密码 / 授权码 + IMAP」登录。唯一可行的方法是 **Microsoft Graph 设备代码授权**：插件不会拿到你的密码，只保存一个只读令牌。
+
+要准备三样东西：
+
+1. **Microsoft 邮箱地址**：`me@outlook.com` 这类地址本身。
+2. **Azure 应用（客户端）ID**：相当于插件向微软出示的「身份证号」，注册一次即可给所有 Microsoft 邮箱共用：
+   - 打开 https://portal.azure.com →「应用注册 / App registrations」→「新注册 / New registration」；
+   - 名称随意（如 `DSH Daily Brief`）；
+   - 「受支持的账户类型 / Supported account types」选「个人 Microsoft 账户」或「任何组织目录中的账户和个人 Microsoft 账户」；
+   - 注册后进「身份验证 / Authentication」→ 把「允许公共客户端流 / Allow public client flows」设为「是」→「保存」；
+   - 回到「概述 / Overview」复制「应用程序(客户端) ID / Application (client) ID」。
+   - 免费，不需要 Azure 订阅；也不需要填重定向 URI。
+3. **一次设备代码登录**：插件会显示一个设备代码，你需要在 https://microsoft.com/devicelogin 输入它，再用该邮箱登录并同意只读权限。
+
+面板里怎么操作：
+
+1. 在「添加来源」粘贴 Microsoft 邮箱地址 →「识别」；
+2. 这一行会给出「方法 / 需要准备 / 客户端 ID 怎么拿」的说明，把上一步复制的客户端 ID 填进去；
+3. 勾选这一行 →「加入」；
+4. 弹窗显示设备代码和「打开 microsoft.com/devicelogin」按钮：打开登录页 → 输入代码 → 用该邮箱登录 → 同意；
+5. 弹窗变成「已连接」即完成；「来源」卡不再显示「未连接 Microsoft」，点「测试」可立即拉取一次。
+
+补充：
+
+- 申请的权限是只读的 `User.Read`、`Mail.Read`、`Calendars.Read`、`Tasks.Read`；一次授权长期有效，令牌过期时点「连接」重新授权即可。
+- 令牌和密码一样保存在本机 DPAPI 加密的 `secrets` 文件里，删除来源会一并清除；换一个 Azure 应用（客户端 ID）后需要重新点「连接」。
+- 如果之前在旧版本里把 Microsoft 邮箱加成 IMAP 来源，删掉它，按上面的步骤重新添加；Microsoft 邮箱没有可用的 IMAP 密码方案。
 
 ## 桌面窗口
 
@@ -131,10 +162,12 @@ Cookie 只保存在本机加密文件里；过期后重新补填一次即可。
 | 服务器一直离线 | 确认地址与端口、服务器是否开机；内网地址需允许私有网络（已默认允许） |
 | 桌面窗口没出现 | 检查是否安装 Edge/Chrome；查看 `logs\runner.log` 的投递记录 |
 | 飞书/ManageBac 抓不到条目 | 多为前端渲染或需要登录：改用日历 ICS 订阅，或在「添加来源」里填入 Cookie |
+| Outlook 邮箱填密码后报错 / 连不上 | Microsoft 已停用 IMAP 密码登录。改用 Microsoft Graph：按上面「Microsoft 邮箱要填什么」填入 Azure 应用（客户端）ID，再点「连接」完成一次授权 |
 
 ## 配置参考（`config.json`）
 
 - `sources[]`：`type`（x/steam/minecraft/http/rss/atom/json/ics/page/imap/graph/managebac）、`section`、`label`、`enabled`、`options`。
+- `graph.clientId`：Microsoft Graph 的 Azure 应用（客户端）ID，所有 Microsoft 邮箱共用；面板里填写后会自动保存。
 - `persona`：`preset`（whale/assistant/butler/officer/custom）、`customName`、`customTagline`、`customAccent`、`customPrompt`。
 - `schedule`：`time`（HH:MM）、`enabled`、`wakeToRun`。
 - `delivery.popup`：`enabled`、`position`、`width`、`height`、`openOnGenerate`。
