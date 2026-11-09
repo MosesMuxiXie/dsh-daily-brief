@@ -327,6 +327,44 @@ test('server strip keeps every monitored server without spending news rows', () 
   assert.match(server.items.map((item) => item.title).join(','), /IHC/);
 });
 
+test('custom persona cards are saved, normalized and selectable', () => {
+  const config = mergeConfig({
+    persona: {
+      preset: 'card-b',
+      cards: [
+        { id: 'card-a', name: '深夜电台', tagline: '慢慢说', accent: '#123456', prompt: '像电台主播' },
+        { id: 'custom', name: '想用内置 id', accent: '#abcdef' },
+        { id: 'card-b', name: '早报', tagline: '干脆', accent: '#zzzzzz', prompt: '像记者' },
+        { id: 'card-empty', name: '  ', tagline: '', prompt: '' },
+      ],
+    },
+  });
+  assert.equal(config.persona.preset, 'card-b');
+  assert.equal(config.persona.cards.length, 3);
+  assert.notEqual(config.persona.cards[1].id, 'custom');
+  assert.equal(config.persona.cards[0].name, '深夜电台');
+  assert.equal(config.persona.cards[0].accent, '#123456');
+  assert.equal(config.persona.cards[2].accent, '');
+  const persona = personaFor(config);
+  assert.equal(persona.id, 'card-b');
+  assert.equal(persona.zh, '早报');
+  assert.equal(persona.tagline, '干脆');
+  assert.equal(persona.prompt, '像记者');
+});
+
+test('persona cards are capped and fall back when the preset is unknown', () => {
+  const cards = Array.from({ length: 14 }, (_, index) => ({
+    id: `card-${index + 1}`,
+    name: `卡片 ${index + 1}`,
+    tagline: '',
+    accent: '#123456',
+    prompt: '',
+  }));
+  const config = mergeConfig({ persona: { preset: 'missing', cards } });
+  assert.equal(config.persona.cards.length, 12);
+  assert.equal(config.persona.preset, 'whale');
+});
+
 test('persona cards keep legacy presets and read the custom slot', () => {
   const legacy = mergeConfig({ persona: { preset: 'warm' } });
   assert.equal(legacy.persona.preset, 'whale');

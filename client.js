@@ -105,6 +105,11 @@ window.__ModuleLoader__.load({
 .dbp-color { width:46px; height:30px; padding:0; border:1px solid rgba(255,255,255,.14); border-radius:8px; background:#0b0b0e; }
 .dbp-textarea-sm { min-height:66px; }
 .dbp-style-count { font-size:10.5px; color:var(--dsw-alias-label-tertiary,#7b7b86); font-variant-numeric:tabular-nums; }
+.dbp-style-add { align-items:center; justify-content:center; text-align:center; border-style:dashed; color:rgba(255,255,255,.6); }
+.dbp-style-add:hover:not(:disabled) { color:var(--dsw-alias-label-primary,#ececf1); }
+.dbp-style-editor-title { font-size:12px; font-weight:600; color:var(--dsw-alias-label-primary,#ececf1); }
+.dbp-style-error { color:var(--dsw-alias-state-error-primary,#c0533c); font-size:11.5px; }
+.dbp-style-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:2px; }
 .dbp-style-label { display:flex; align-items:baseline; justify-content:space-between; gap:8px; }
 .dbp-note { margin:-4px 0 14px; padding:9px 12px; border:1px solid var(--dsw-alias-border-l1,#33333a); border-radius:10px; background:var(--dsw-alias-bg-layer-2,#17171b); color:var(--dsw-alias-label-secondary); font-size:12px; line-height:1.5; }
 .dbp-note-inline { margin-top:9px; color:var(--dsw-alias-label-tertiary); font-size:11.5px; }
@@ -586,16 +591,34 @@ window.__ModuleLoader__.load({
       );
     }
 
-    const CUSTOM_LIMITS = { customName: 24, customTagline: 60, customPrompt: 2000 };
+    const STYLE_LIMITS = { name: 24, tagline: 60, prompt: 2000 };
+    const MAX_STYLE_CARDS = 12;
 
-    function customDraftOf(persona) {
-      const source = persona || {};
+    function draftOf(card) {
+      const source = card || {};
       return {
-        customName: source.customName || '',
-        customTagline: source.customTagline || '',
-        customAccent: source.customAccent || '',
-        customPrompt: source.customPrompt || '',
+        name: source.name || '',
+        tagline: source.tagline || '',
+        accent: /^#[0-9a-f]{6}$/i.test(source.accent || '') ? source.accent : '#9a8cff',
+        prompt: source.prompt || '',
       };
+    }
+
+    function legacyDraft(persona) {
+      return {
+        name: persona.customName || '',
+        tagline: persona.customTagline || '',
+        accent: /^#[0-9a-f]{6}$/i.test(persona.customAccent || '') ? persona.customAccent : '#9a8cff',
+        prompt: persona.customPrompt || '',
+      };
+    }
+
+    function emptyCard() {
+      return { name: '', tagline: '', accent: '#9a8cff', prompt: '' };
+    }
+
+    function newCardId() {
+      return `card-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
     }
 
     const BUILTIN_STYLES = [
@@ -611,75 +634,133 @@ window.__ModuleLoader__.load({
       const persona = config.persona || {};
       const styles = Array.isArray(config.personaStyles) && config.personaStyles.length > 0 ? config.personaStyles : BUILTIN_STYLES;
       const current = persona.preset || 'whale';
-      const personaRef = useRef(persona);
-      personaRef.current = persona;
-      const [draft, setDraft] = useState(() => customDraftOf(persona));
-      const draftRef = useRef(draft);
-      draftRef.current = draft;
-      const cardRef = useRef(null);
-      const saveTimer = useRef(null);
-      const composingRef = useRef(false);
-      const dirtyRef = useRef(false);
-      const accent = /^#[0-9a-f]{6}$/i.test(draft.customAccent || '') ? draft.customAccent : '#9a8cff';
+      const cards = Array.isArray(persona.cards) ? persona.cards : [];
+      const builtins = styles.filter((style) => style.id !== 'custom');
+      const legacy = legacyDraft(persona);
+      const showLegacy = current === 'custom' || Boolean(legacy.name || legacy.tagline || legacy.prompt);
+      const [editor, setEditor] = useState(null);
+      const [cardEditing, setCardEditing] = useState(() => emptyCard());
+      const [cardDirty, setCardDirty] = useState(false);
+      const [cardError, setCardError] = useState('');
+      const cardKey = JSON.stringify(cards);
 
-      const savePersona = useCallback(
-        (extra = {}) => {
-          dirtyRef.current = false;
-          onSave({ persona: { ...personaRef.current, ...draftRef.current, ...extra } });
-        },
-        [onSave],
-      );
-
-      const flush = useCallback(() => {
-        window.clearTimeout(saveTimer.current);
-        saveTimer.current = null;
-        if (dirtyRef.current) savePersona();
-      }, [savePersona]);
-
-      useEffect(() => () => window.clearTimeout(saveTimer.current), []);
-
-      // The save response and the 30s refresh echo the server-normalized value
-      // back. Adopt it only while the user is not editing this card, so typing
-      // (and the Chinese IME) is never interrupted by a re-render.
+      // Adopt server-normalized values only while this card has no unsaved
+      // edits, so a save response or the 30s refresh never eats typed text.
       useEffect(() => {
-        const incoming = customDraftOf(persona);
-        const same = Object.keys(incoming).every((key) => incoming[key] === draftRef.current[key]);
-        if (same || composingRef.current) return;
-        const active = document.activeElement;
-        if (cardRef.current && active && cardRef.current.contains(active)) return;
-        setDraft(incoming);
-        draftRef.current = incoming;
-      }, [persona.customName, persona.customTagline, persona.customAccent, persona.customPrompt]);
+        if (!editor || cardDirty) return;
+        if (editor.id === 'custom') {
+          setCardEditing(legacyDraft(persona));
+          return;
+        }
+        const item = (Array.isArray(persona.cards) ? persona.cards : []).find((entry) => entry.id === editor.id);
+        if (item) setCardEditing(draftOf(item));
+      }, [cardKey, persona.customName, persona.customTagline, persona.customAccent, persona.customPrompt, editor, cardDirty]);
 
-      const edit = (patch) => {
-        const next = { ...draftRef.current, ...patch };
-        draftRef.current = next;
-        setDraft(next);
-        dirtyRef.current = true;
-        window.clearTimeout(saveTimer.current);
-        if (composingRef.current) return;
-        saveTimer.current = window.setTimeout(flush, 500);
-      };
-
-      const finishEdit = () => {
-        window.clearTimeout(saveTimer.current);
-        saveTimer.current = null;
-        if (dirtyRef.current) savePersona();
+      const selectPreset = (id) => {
+        onSave({ persona: { ...persona, preset: id } });
       };
 
       const pickStyle = (id) => {
-        window.clearTimeout(saveTimer.current);
-        saveTimer.current = null;
-        savePersona({ preset: id });
+        setEditor(null);
+        setCardDirty(false);
+        setCardError('');
+        selectPreset(id);
       };
+
+      const openCard = (item) => {
+        setCardEditing(draftOf(item));
+        setEditor({ id: item.id });
+        setCardDirty(false);
+        setCardError('');
+        selectPreset(item.id);
+      };
+
+      const openLegacy = () => {
+        setCardEditing(legacyDraft(persona));
+        setEditor({ id: 'custom' });
+        setCardDirty(false);
+        setCardError('');
+        selectPreset('custom');
+      };
+
+      const openNew = () => {
+        setCardEditing(emptyCard());
+        setEditor({ id: null });
+        setCardDirty(false);
+        setCardError('');
+      };
+
+      const editCard = (patch) => {
+        setCardEditing((prev) => ({ ...prev, ...patch }));
+        setCardDirty(true);
+        setCardError('');
+      };
+
+      const saveCard = () => {
+        const legacyEditor = Boolean(editor && editor.id === 'custom');
+        const name = cardEditing.name.trim();
+        if (!legacyEditor && !name) {
+          setCardError('先给卡片起个名字');
+          return;
+        }
+        const existing = !legacyEditor && editor && editor.id ? cards.find((item) => item.id === editor.id) : null;
+        if (!legacyEditor && !existing && cards.length >= MAX_STYLE_CARDS) {
+          setCardError(`最多保存 ${MAX_STYLE_CARDS} 张自定义卡片`);
+          return;
+        }
+        const value = {
+          name: name.slice(0, STYLE_LIMITS.name),
+          tagline: cardEditing.tagline.trim().slice(0, STYLE_LIMITS.tagline),
+          accent: /^#[0-9a-f]{6}$/i.test(cardEditing.accent) ? cardEditing.accent : '',
+          prompt: cardEditing.prompt.trim().slice(0, STYLE_LIMITS.prompt),
+        };
+        if (legacyEditor) {
+          onSave({
+            persona: {
+              ...persona,
+              preset: 'custom',
+              customName: value.name,
+              customTagline: value.tagline,
+              customAccent: value.accent,
+              customPrompt: value.prompt,
+            },
+          });
+          setCardDirty(false);
+          return;
+        }
+        const id = existing ? existing.id : newCardId();
+        const nextCards = existing
+          ? cards.map((item) => (item.id === id ? { ...item, ...value } : item))
+          : [...cards, { id, ...value }];
+        onSave({ persona: { ...persona, preset: id, cards: nextCards } });
+        setEditor({ id });
+        setCardDirty(false);
+      };
+
+      const deleteCard = () => {
+        if (!editor || !editor.id || editor.id === 'custom') return;
+        const item = cards.find((entry) => entry.id === editor.id);
+        if (!item || !window.confirm(`删除卡片「${item.name || '未命名'}」？`)) return;
+        const nextCards = cards.filter((entry) => entry.id !== editor.id);
+        onSave({ persona: { ...persona, preset: current === editor.id ? (nextCards[0]?.id || 'whale') : current, cards: nextCards } });
+        setEditor(null);
+        setCardDirty(false);
+      };
+
+      const closeEditor = () => {
+        setEditor(null);
+        setCardDirty(false);
+        setCardError('');
+      };
+
       return h(
         'div',
-        { className: 'dbp-card dbp-card-quiet', ref: cardRef },
+        { className: 'dbp-card dbp-card-quiet' },
         h('div', { className: 'dbp-label' }, '简报风格'),
         h(
           'div',
           { className: 'dbp-style-grid' },
-          styles.map((style) => {
+          builtins.map((style) => {
             const builtin = BUILTIN_STYLES.find((entry) => entry.id === style.id) || {};
             return h(
               'button',
@@ -696,10 +777,56 @@ window.__ModuleLoader__.load({
               h('span', { className: 'dbp-style-tag' }, style.tagline || ''),
             );
           }),
+          showLegacy
+            ? h(
+                'button',
+                {
+                  key: 'custom',
+                  type: 'button',
+                  className: `dbp-style${current === 'custom' ? ' is-on' : ''}`,
+                  style: { '--tone': '#9a8cff' },
+                  disabled: locked,
+                  onClick: openLegacy,
+                },
+                h('span', { className: 'dbp-style-emoji' }, '🎨'),
+                h('span', { className: 'dbp-style-name' }, legacy.name || '自定义'),
+                h('span', { className: 'dbp-style-tag' }, legacy.tagline || '名字、语气、颜色都由你定'),
+              )
+            : null,
+          cards.map((item) =>
+            h(
+              'button',
+              {
+                key: item.id,
+                type: 'button',
+                className: `dbp-style${current === item.id ? ' is-on' : ''}`,
+                style: { '--tone': /^#[0-9a-f]{6}$/i.test(item.accent || '') ? item.accent : '#9a8cff' },
+                disabled: locked,
+                onClick: () => openCard(item),
+              },
+              h('span', { className: 'dbp-style-emoji' }, '🎨'),
+              h('span', { className: 'dbp-style-name' }, item.name || '未命名卡片'),
+              h('span', { className: 'dbp-style-tag' }, item.tagline || '自己定义的简报人格'),
+            ),
+          ),
+          h(
+            'button',
+            {
+              key: '__add',
+              type: 'button',
+              className: 'dbp-style dbp-style-add',
+              disabled: locked || cards.length >= MAX_STYLE_CARDS,
+              onClick: openNew,
+            },
+            h('span', { className: 'dbp-style-emoji' }, '＋'),
+            h('span', { className: 'dbp-style-name' }, '新增卡片'),
+            h('span', { className: 'dbp-style-tag' }, cards.length >= MAX_STYLE_CARDS ? `最多 ${MAX_STYLE_CARDS} 张` : '保存后可以继续加'),
+          ),
         ),
         locked ? h('div', { className: 'dbp-note-inline' }, '重启一次 DSH 后，这里就可以切换风格') : null,
         (() => {
-          const active = styles.find((style) => style.id === current) || {};
+          const customCurrent = current === 'custom' || cards.some((item) => item.id === current);
+          const active = customCurrent ? (BUILTIN_STYLES.find((entry) => entry.id === 'custom') || {}) : (styles.find((style) => style.id === current) || {});
           const notes = Array.isArray(active.notes) && active.notes.length > 0 ? active.notes : (BUILTIN_STYLES.find((entry) => entry.id === current) || {}).notes;
           if (!Array.isArray(notes) || notes.length === 0) return null;
           return h(
@@ -709,10 +836,15 @@ window.__ModuleLoader__.load({
             notes.map((note) => h('span', { className: 'dbp-tag', key: `${current}-${note}` }, note)),
           );
         })(),
-        current === 'custom'
+        editor
           ? h(
               'div',
               { className: 'dbp-style-custom' },
+              h(
+                'div',
+                { className: 'dbp-style-editor-title' },
+                editor.id === null ? '新增卡片' : editor.id === 'custom' ? '编辑「自定义」' : '编辑卡片',
+              ),
               h(
                 'label',
                 null,
@@ -720,24 +852,16 @@ window.__ModuleLoader__.load({
                   'span',
                   { className: 'dbp-style-label' },
                   '名字',
-                  h('span', { className: 'dbp-style-count' }, `${draft.customName.length}/${CUSTOM_LIMITS.customName}`),
+                  h('span', { className: 'dbp-style-count' }, `${cardEditing.name.length}/${STYLE_LIMITS.name}`),
                 ),
                 h('input', {
                   className: 'dbp-input',
-                  value: draft.customName,
-                  maxLength: CUSTOM_LIMITS.customName,
+                  value: cardEditing.name,
+                  maxLength: STYLE_LIMITS.name,
                   spellCheck: false,
                   disabled: locked,
                   placeholder: '例如 深夜电台',
-                  onCompositionStart: () => {
-                    composingRef.current = true;
-                  },
-                  onCompositionEnd: (event) => {
-                    composingRef.current = false;
-                    edit({ customName: event.target.value });
-                  },
-                  onChange: (event) => edit({ customName: event.target.value }),
-                  onBlur: finishEdit,
+                  onChange: (event) => editCard({ name: event.target.value }),
                 }),
               ),
               h(
@@ -747,24 +871,16 @@ window.__ModuleLoader__.load({
                   'span',
                   { className: 'dbp-style-label' },
                   '一句话',
-                  h('span', { className: 'dbp-style-count' }, `${draft.customTagline.length}/${CUSTOM_LIMITS.customTagline}`),
+                  h('span', { className: 'dbp-style-count' }, `${cardEditing.tagline.length}/${STYLE_LIMITS.tagline}`),
                 ),
                 h('input', {
                   className: 'dbp-input',
-                  value: draft.customTagline,
-                  maxLength: CUSTOM_LIMITS.customTagline,
+                  value: cardEditing.tagline,
+                  maxLength: STYLE_LIMITS.tagline,
                   spellCheck: false,
                   disabled: locked,
                   placeholder: '例如 慢慢说，不着急',
-                  onCompositionStart: () => {
-                    composingRef.current = true;
-                  },
-                  onCompositionEnd: (event) => {
-                    composingRef.current = false;
-                    edit({ customTagline: event.target.value });
-                  },
-                  onChange: (event) => edit({ customTagline: event.target.value }),
-                  onBlur: finishEdit,
+                  onChange: (event) => editCard({ tagline: event.target.value }),
                 }),
               ),
               h(
@@ -774,10 +890,9 @@ window.__ModuleLoader__.load({
                 h('input', {
                   className: 'dbp-color',
                   type: 'color',
-                  value: accent,
+                  value: cardEditing.accent,
                   disabled: locked,
-                  onChange: (event) => edit({ customAccent: event.target.value }),
-                  onBlur: finishEdit,
+                  onChange: (event) => editCard({ accent: event.target.value }),
                 }),
               ),
               h(
@@ -787,26 +902,35 @@ window.__ModuleLoader__.load({
                   'span',
                   { className: 'dbp-style-label' },
                   '语气',
-                  h('span', { className: 'dbp-style-count' }, `${draft.customPrompt.length}/${CUSTOM_LIMITS.customPrompt}`),
+                  h('span', { className: 'dbp-style-count' }, `${cardEditing.prompt.length}/${STYLE_LIMITS.prompt}`),
                 ),
                 h('textarea', {
                   className: 'dbp-textarea dbp-textarea-sm',
                   rows: 3,
-                  value: draft.customPrompt,
-                  maxLength: CUSTOM_LIMITS.customPrompt,
+                  value: cardEditing.prompt,
+                  maxLength: STYLE_LIMITS.prompt,
                   spellCheck: false,
                   disabled: locked,
                   placeholder: '例如：语气温柔、轻快，句尾偶尔带「呀」',
-                  onCompositionStart: () => {
-                    composingRef.current = true;
-                  },
-                  onCompositionEnd: (event) => {
-                    composingRef.current = false;
-                    edit({ customPrompt: event.target.value });
-                  },
-                  onChange: (event) => edit({ customPrompt: event.target.value }),
-                  onBlur: finishEdit,
+                  onChange: (event) => editCard({ prompt: event.target.value }),
                 }),
+              ),
+              cardError ? h('div', { className: 'dbp-style-error' }, cardError) : null,
+              h(
+                'div',
+                { className: 'dbp-style-actions' },
+                h(Btn, { variant: 'primary', disabled: locked, onClick: saveCard }, '保存卡片'),
+                h(Btn, { variant: 'ghost', disabled: locked, onClick: closeEditor }, editor.id === null ? '取消' : '收起'),
+                editor.id && editor.id !== 'custom'
+                  ? h(Btn, { variant: 'ghost', disabled: locked, onClick: deleteCard }, '删除卡片')
+                  : null,
+              ),
+              h(
+                'div',
+                { className: 'dbp-note-inline' },
+                editor.id
+                  ? '保存后，页头的名字、配色和润色语气都会用这张卡片。'
+                  : '保存后会出现在卡片列表里，之后还可以继续点「新增卡片」。',
               ),
             )
           : null,
