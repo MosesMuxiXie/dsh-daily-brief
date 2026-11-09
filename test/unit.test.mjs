@@ -109,7 +109,7 @@ test('import helpers split lines and suggest IMAP settings', () => {
   assert.equal(mail.port, 993);
 });
 
-test('briefing keeps at most five news rows with the 3/2 AI-game split', () => {
+test('briefing fills up to ten news rows with the 4/3 AI-game split', () => {
   const config = defaultConfig();
   const makeItems = (prefix, count) =>
     Array.from({ length: count }, (_, index) => ({
@@ -136,9 +136,9 @@ test('briefing keeps at most five news rows with the 3/2 AI-game split', () => {
     },
   ];
   const briefing = buildBriefing({ config, results, dateKey: '2026-11-08' });
-  assert.equal(briefing.stats.items, 5);
-  assert.equal(briefing.sections.find((section) => section.id === 'aiNews').items.length, 3);
-  assert.equal(briefing.sections.find((section) => section.id === 'gameNews').items.length, 2);
+  assert.equal(briefing.stats.items, 10);
+  assert.equal(briefing.sections.find((section) => section.id === 'aiNews').items.length, 6);
+  assert.equal(briefing.sections.find((section) => section.id === 'gameNews').items.length, 4);
   assert.equal(briefing.sections.find((section) => section.id === 'server').server.online, true);
   assert.match(briefing.headline, /AI|游戏/);
 });
@@ -163,10 +163,10 @@ test('school notices keep a seat even when ai and games are busy', () => {
     { source: { id: 'imap-1', label: '邮箱', section: 'mail', enabled: true }, result: { status: 'ok', items: makeItems('mail', 2), note: '' } },
   ];
   const briefing = buildBriefing({ config, results, dateKey: '2026-11-08' });
-  assert.equal(briefing.stats.items, 5);
+  assert.equal(briefing.stats.items, 10);
   const school = briefing.sections.find((section) => section.id === 'managebac');
   assert.ok(school && school.items.length >= 1, 'school notices should be summarized');
-  assert.ok(briefing.sections.find((section) => section.id === 'aiNews').items.length <= 2);
+  assert.ok(briefing.sections.find((section) => section.id === 'aiNews').items.length <= 5);
   assert.match(briefing.headline, /其他更新/);
 });
 
