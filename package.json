@@ -1,9 +1,26 @@
 {
   "name": "@local/dsh-daily-brief",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "private": true,
   "type": "module",
-  "description": "Focused daily briefing for DeepSeek Harness: five items from watched X accounts and Steam games, a Minecraft server strip, and a desktop popup window instead of a toast.",
+  "description": "Daily briefing plugin for DeepSeek Harness: X, RSS/Atom/JSON/ICS, YouTube, Bilibili, Steam, Minecraft and status pages, mailboxes and calendars in one persona-styled card with a scheduled Windows popup.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MosesMuxiXie/dsh-daily-brief.git"
+  },
+  "homepage": "https://github.com/MosesMuxiXie/dsh-daily-brief#readme",
+  "bugs": {
+    "url": "https://github.com/MosesMuxiXie/dsh-daily-brief/issues"
+  },
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "daily-brief",
+    "rss",
+    "steam",
+    "bilibili"
+  ],
   "main": "index.js",
   "exports": {
     ".": "./index.js",
