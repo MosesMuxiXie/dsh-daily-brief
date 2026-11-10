@@ -6,9 +6,9 @@
 
 ## 截图
 
-![每日简报卡片（浅色）](assets/screenshots/briefing-light.png)
+![每日简报卡片（浅色）](https://raw.githubusercontent.com/MosesMuxiXie/dsh-daily-brief/main/assets/screenshots/briefing-light.png)
 
-![每日简报卡片（深色）](assets/screenshots/briefing-dark.png)
+![每日简报卡片（深色）](https://raw.githubusercontent.com/MosesMuxiXie/dsh-daily-brief/main/assets/screenshots/briefing-dark.png)
 
 ## 特性
 
@@ -33,7 +33,7 @@
 
 ## 安装
 
-1. 在 DSH 对话里让 agent 用 `plugin_manager` 的 `install_bundle` 指向本目录（或先 `git clone` 再安装）。
+1. 在 DSH 对话里让 agent 用 `plugin_manager` 的 `install_bundle` 安装 npm 包 `dsh-daily-brief`；本地开发时也可以直接指向本目录。
 2. 重载 DSH 页面，左侧边栏会出现「每日简报」。
 3. 打开面板，插件会自动创建配置目录：`%USERPROFILE%\.dsh\storages\daily-brief\`。
 

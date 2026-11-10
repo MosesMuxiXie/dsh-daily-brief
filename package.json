@@ -1,7 +1,9 @@
 {
-  "name": "@local/dsh-daily-brief",
-  "version": "2.0.1",
-  "private": true,
+  "name": "dsh-daily-brief",
+  "version": "2.0.2",
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "description": "Daily briefing plugin for DeepSeek Harness: X, RSS/Atom/JSON/ICS, YouTube, Bilibili, Steam, Minecraft and status pages, mailboxes and calendars in one persona-styled card with a scheduled Windows popup.",
   "license": "MIT",

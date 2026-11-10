@@ -6,7 +6,7 @@
  * formats) is gone on purpose; the panel saves as you type.
  */
 window.__ModuleLoader__.load({
-  id: '@local/dsh-daily-brief',
+  id: 'dsh-daily-brief',
   factory(require) {
     const React = require('react');
     const h = React.createElement;
@@ -293,7 +293,7 @@ window.__ModuleLoader__.load({
     const TAG = 'daily-brief-panel-css';
     if (typeof document !== 'undefined' && !document.querySelector(`style[data-plugin-css="${TAG}"]`)) {
       const tag = document.createElement('style');
-      tag.dataset.plugin = '@local/dsh-daily-brief';
+      tag.dataset.plugin = 'dsh-daily-brief';
       tag.dataset.pluginCss = TAG;
       tag.textContent = CSS;
       document.head.appendChild(tag);

@@ -6,7 +6,7 @@ import { createDailyBriefService } from './lib/host/service.js';
 import { registerRoutes } from './lib/host/routes.js';
 import { registerTools } from './lib/host/tools.js';
 
-export const name = '@local/dsh-daily-brief';
+export const name = 'dsh-daily-brief';
 export const inject = ['webServer', 'tools'];
 
 export function apply(ctx, config = {}) {

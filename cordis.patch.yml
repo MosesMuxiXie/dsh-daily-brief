@@ -1,4 +1,4 @@
 - insert:
     - id: daily-brief
-      name: '@local/dsh-daily-brief'
+      name: 'dsh-daily-brief'
       config: {}
