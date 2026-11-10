@@ -65,8 +65,11 @@ window.__ModuleLoader__.load({
       http: '状态',
       browser: '足迹',
       imap: '邮箱',
-      graph: 'Outlook',
+      graph: 'Microsoft 账户',
       managebac: 'ManageBac',
+      youtube: 'YouTube',
+      bilibili: '哔哩哔哩',
+      guide: '指南',
     };
 
     const CSS = `
@@ -227,6 +230,64 @@ window.__ModuleLoader__.load({
 .dbp-graph-help > div + div { margin-top:4px; }
 .dbp-graph-code { margin:12px auto 4px; padding:14px 16px; max-width:320px; border:1px dashed var(--dsw-alias-border-l2,#3a3a42); border-radius:10px; font:600 26px/1.2 ui-monospace,Consolas,monospace; letter-spacing:.16em; text-align:center; user-select:all; }
 .dbp-graph-step { margin-top:10px; font-size:12px; line-height:1.7; color:var(--dsw-alias-label-secondary,#b9b9c3); }
+
+      /* ── Wallpaper Engine：让动态壁纸透进来 ────────────────────────────────
+         The host's wallpaper/glass layers expose --we-* tokens. Scope the
+         transparent treatment to those bodies so a normal DSH theme keeps the
+         solid panel it always had. */
+      body:is([data-we-wallpaper],[data-we-glass-page]) .dbp-root { background:transparent; }
+      body:is([data-we-wallpaper],[data-we-glass-page]) .dbp-card {
+        background:color-mix(in srgb, var(--we-surface-tint-dark,#12141a) 74%, transparent);
+        border-color:rgba(255,255,255,calc(var(--we-border-alpha,.12) * .9));
+        -webkit-backdrop-filter:blur(var(--we-blur,18px)) saturate(var(--we-saturate,1.6));
+        backdrop-filter:blur(var(--we-blur,18px)) saturate(var(--we-saturate,1.6));
+        box-shadow:0 12px 32px rgba(0,0,0,.26), inset 0 1px 0 rgba(255,255,255,.06);
+      }
+      body:is([data-we-wallpaper],[data-we-glass-page]) .dbp-card-quiet,
+      body:is([data-we-wallpaper],[data-we-glass-page]) .dbp-hint,
+      body:is([data-we-wallpaper],[data-we-glass-page]) .dbp-style {
+        background:color-mix(in srgb, var(--we-surface-tint-dark,#12141a) 58%, transparent);
+        border-color:rgba(255,255,255,calc(var(--we-border-alpha,.12) * .7));
+        -webkit-backdrop-filter:blur(calc(var(--we-blur,18px) * .75)) saturate(var(--we-saturate,1.6));
+        backdrop-filter:blur(calc(var(--we-blur,18px) * .75)) saturate(var(--we-saturate,1.6));
+      }
+      body:is([data-we-wallpaper],[data-we-glass-page]) .dbp-style.is-on {
+        background:color-mix(in srgb, var(--tone) 22%, transparent);
+      }
+      body:is([data-we-wallpaper],[data-we-glass-page]) .dbp-input,
+      body:is([data-we-wallpaper],[data-we-glass-page]) .dbp-textarea,
+      body:is([data-we-wallpaper],[data-we-glass-page]) .dbp-select,
+      body:is([data-we-wallpaper],[data-we-glass-page]) .dbp-color {
+        background:rgba(7,8,11,.42);
+        border-color:rgba(255,255,255,.16);
+      }
+      body:is([data-we-wallpaper],[data-we-glass-page]) .dbp-modal {
+        background:color-mix(in srgb, var(--we-surface-tint-dark,#12141a) 88%, transparent);
+        border-color:rgba(255,255,255,calc(var(--we-border-alpha,.12) * 1.1));
+        -webkit-backdrop-filter:blur(calc(var(--we-blur,18px) * 1.15)) saturate(var(--we-saturate,1.6));
+        backdrop-filter:blur(calc(var(--we-blur,18px) * 1.15)) saturate(var(--we-saturate,1.6));
+      }
+      body:is([data-we-wallpaper],[data-we-glass-page]) .dbp-modal-mask {
+        background:rgba(3,4,7,.42);
+        -webkit-backdrop-filter:blur(4px);
+        backdrop-filter:blur(4px);
+      }
+      body:is([data-we-wallpaper],[data-we-glass-page]) .dbp-server,
+      body:is([data-we-wallpaper],[data-we-glass-page]) .dbp-note {
+        -webkit-backdrop-filter:blur(calc(var(--we-blur,18px) * .6));
+        backdrop-filter:blur(calc(var(--we-blur,18px) * .6));
+      }
+      /* 壁纸可能是亮色：标题直接压在壁纸上，加一层轻微暗影保证可读性。 */
+      body:is([data-we-wallpaper],[data-we-glass-page]) .dbp-head h1,
+      body:is([data-we-wallpaper],[data-we-glass-page]) .dbp-headline,
+      body:is([data-we-wallpaper],[data-we-glass-page]) .dbp-head .dbp-sub {
+        text-shadow:0 1px 10px rgba(0,0,0,.6), 0 0 2px rgba(0,0,0,.45);
+      }
+      @media (prefers-reduced-transparency: reduce) {
+        body:is([data-we-wallpaper],[data-we-glass-page]) .dbp-root { background:var(--dsw-alias-bg-base,#0e0e12); }
+        body:is([data-we-wallpaper],[data-we-glass-page]) .dbp-card,
+        body:is([data-we-wallpaper],[data-we-glass-page]) .dbp-modal { background:#141418; -webkit-backdrop-filter:none; backdrop-filter:none; }
+      }
 `;
 
     const TAG = 'daily-brief-panel-css';
@@ -291,7 +352,7 @@ window.__ModuleLoader__.load({
     }
 
     function serverLine(section) {
-      const items = (section.items || []).slice(0, 4);
+      const items = section.items || [];
       if (items.length > 0) {
         return h(
           'div',
@@ -423,7 +484,7 @@ window.__ModuleLoader__.load({
         h('h2', { className: 'dbp-headline' }, briefing.headline || '今天的简报'),
         briefing.intro ? h('p', { className: 'dbp-intro' }, briefing.intro) : null,
         (briefing.sections || []).map((section) => h(Group, { key: section.id, section })),
-        warnings.length > 0 ? h('div', { className: 'dbp-warn' }, warnings.slice(0, 2).join('；')) : null,
+        warnings.length > 0 ? h('div', { className: 'dbp-warn' }, warnings.join('；')) : null,
         h(
           'div',
           { className: 'dbp-today-foot' },
@@ -937,10 +998,23 @@ window.__ModuleLoader__.load({
       );
     }
 
+    function scheduleTimes(schedule) {
+      const lead = Math.min(60, Math.max(1, Math.round(Number(schedule && schedule.prepareLeadMin) || 10)));
+      const [hh, mm] = String((schedule && schedule.time) || '07:30')
+        .split(':')
+        .map((value) => Number(value) || 0);
+      const total = (((hh * 60 + mm - lead) % 1440) + 1440) % 1440;
+      return {
+        lead,
+        prepareTime: `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`,
+      };
+    }
+
     function RhythmCard(props) {
       const { config, onSave, onTestPopup } = props;
       const popup = (config.delivery && config.delivery.popup) || {};
       const schedule = config.schedule || { time: '07:30', enabled: true };
+      const times = scheduleTimes(schedule);
       return h(
         'div',
         { className: 'dbp-card dbp-card-quiet' },
@@ -948,7 +1022,12 @@ window.__ModuleLoader__.load({
         h(
           'div',
           { className: 'dbp-line' },
-          h('div', null, h('div', { className: 'dbp-line-label' }, '每天生成'), h('div', { className: 'dbp-line-hint' }, '到点后自动收集并弹出')),
+          h(
+            'div',
+            null,
+            h('div', { className: 'dbp-line-label' }, '每天生成'),
+            h('div', { className: 'dbp-line-hint' }, `${times.prepareTime} 开始准备，${schedule.time || '07:30'} 准时发布；错过当天的发布，开机后补发`),
+          ),
           h('div', { className: 'dbp-line-spacer' }),
           h('input', {
             className: 'dbp-input-time',
@@ -970,6 +1049,16 @@ window.__ModuleLoader__.load({
           h(Toggle, {
             checked: popup.openOnGenerate !== false,
             onChange: (value) => onSave({ delivery: { ...config.delivery, popup: { ...popup, openOnGenerate: value, enabled: value || popup.enabled } } }),
+          }),
+        ),
+        h(
+          'div',
+          { className: 'dbp-line' },
+          h('div', null, h('div', { className: 'dbp-line-label' }, '睡眠时唤醒'), h('div', { className: 'dbp-line-hint' }, '到点前唤醒电脑，避免错过准备')),
+          h('div', { className: 'dbp-line-spacer' }),
+          h(Toggle, {
+            checked: schedule.wakeToRun === true,
+            onChange: (value) => onSave({ schedule: { ...schedule, wakeToRun: value } }),
           }),
         ),
       );
@@ -1293,7 +1382,7 @@ window.__ModuleLoader__.load({
           const result = await api('/probe', { text }, 120000);
           const detected = (result.results || []).map((proposal, index) => ({
             key: index,
-            checked: proposal.ok !== false,
+            checked: proposal.ok !== false && proposal.addable !== false,
             label: proposal.label || '',
             section: proposal.section || 'custom',
             secret: '',
@@ -1372,6 +1461,35 @@ window.__ModuleLoader__.load({
             try { parsed = new URL(target); } catch { continue; }
             if (!parsed.hostname) continue;
             const host = parsed.hostname;
+            // Old host processes (before the YouTube/Bilibili collectors) would
+            // fall through to a generic http monitor; recognize the platforms here
+            // so the panel can still add a real content source after an update.
+            const youtubeHost = /(^|\.)(youtube\.com|youtu\.be)$/i.test(host);
+            const bilibiliHost = /(^|\.)(bilibili\.com|b23\.tv)$/i.test(host);
+            if (youtubeHost || bilibiliHost) {
+              const type = youtubeHost ? 'youtube' : 'bilibili';
+              fallback.push({
+                key: detected.length + fallback.length,
+                checked: true,
+                label: youtubeHost ? 'YouTube' : '哔哩哔哩',
+                section: youtubeHost ? 'aiNews' : 'custom',
+                secret: '',
+                host: '',
+                proposal: {
+                  type,
+                  section: youtubeHost ? 'aiNews' : 'custom',
+                  label: youtubeHost ? 'YouTube' : '哔哩哔哩',
+                  url: target,
+                  options: {},
+                  note: youtubeHost
+                    ? '按 YouTube 频道 / 视频加入（读取公开 RSS 与页面信息，无需登录）。'
+                    : '按 B 站视频 / UP 主 / 排行榜加入（公开接口；如果被风控，稍后重试或保存 Cookie）。',
+                  preview: { title: youtubeHost ? 'YouTube' : '哔哩哔哩', subtitle: '视频更新', items: [] },
+                },
+              });
+              handledLines.add(line);
+              continue;
+            }
             const isCalendar = /\.ics($|[?#])/i.test(target) || /\/ical\//i.test(target) || /calendar/i.test(target);
             if (isCalendar) {
               fallback.push({
@@ -1406,12 +1524,12 @@ window.__ModuleLoader__.load({
               secret: '',
               host: '',
               proposal: {
-                type: 'http',
+                type: 'page',
                 section,
                 label: host,
                 url: target,
-                options: { allowPrivate: privateHost },
-                note: '未识别为订阅，按网页来源加入（记录在线状态与响应时间）。',
+                options: { mode: 'auto' },
+                note: '按网页来源加入：有正文就提取正文，没有正文就提取页面上的最近条目（不需要订阅源）。',
               },
             });
             handledLines.add(line);
@@ -1432,6 +1550,8 @@ window.__ModuleLoader__.load({
                 ? `已识别 ${list.length} 个日历订阅，确认后点「加入」`
                 : `已识别 ${list.length} 个来源（其中 ${fallback.length} 个按链接类型补上），确认后点「加入」`,
             );
+          } else if (list.every((row) => row.proposal.addable === false)) {
+            setMessage('识别到操作指南：按上面的步骤在 Outlook 里转发邮件 / 发布日历，再把接收邮箱或 ICS 链接粘贴到这里。');
           } else {
             setMessage('');
           }
@@ -1447,7 +1567,7 @@ window.__ModuleLoader__.load({
 
       const submit = async () => {
         if (busy) return;
-        const picked = rows.filter((row) => row.checked);
+        const picked = rows.filter((row) => row.checked && row.proposal.addable !== false);
         if (picked.length === 0) {
           setMessage('先勾选要添加的来源');
           return;
@@ -1459,7 +1579,7 @@ window.__ModuleLoader__.load({
           const id = String(clientId || '').trim();
           if (id === '') {
             setBusy('');
-            setErrors(['Microsoft 邮箱要先填写 Azure 应用（客户端）ID：按行内 1–4 步注册后复制「应用程序(客户端) ID」。']);
+            setErrors(['这个 Microsoft Graph 来源要先填写 Azure 应用（客户端）ID。日常用的 Outlook 邮箱请按上面的「转发到 Gmail / QQ」指南操作，不需要 Azure。']);
             return;
           }
           if (typeof onSaveClientId === 'function') {
@@ -1518,11 +1638,13 @@ window.__ModuleLoader__.load({
         onClose();
       };
 
+      const addableCount = rows.filter((row) => row.checked && row.proposal.addable !== false).length;
+
       return h(
         Modal,
         {
           title: '添加来源',
-          sub: '粘贴网址、邮箱地址或服务器地址，每行一个。支持订阅源、网页、日历 ICS、邮箱（Gmail / QQ / 学校邮箱用 IMAP，Outlook / Hotmail / Live 用 Microsoft Graph 授权）、ManageBac（.com / .cn）、飞书、Steam 与 Minecraft。',
+          sub: '粘贴网址、邮箱地址或服务器地址，每行一个。支持任意网页、YouTube、哔哩哔哩、RSS / Atom、日历 ICS、邮箱（Gmail / QQ / 学校邮箱用 IMAP；Outlook / Hotmail / Live 会给出转发指南）、ManageBac（.com / .cn）、飞书、Steam 与 Minecraft。',
         },
         locked ? h('div', { className: 'dbp-note' }, 'DSH 主进程还停在旧版插件，重启一次后再添加。') : null,
         h(
@@ -1531,7 +1653,8 @@ window.__ModuleLoader__.load({
           h('div', null, '· 订阅源：网址本身就提供 RSS/Atom（常见 .xml、.rss，或 feed 路径）'),
           h('div', null, '· 日历：以 .ics 结尾的「订阅链接」（Google 日历 → 设置 → 该日历 → 私密地址 iCal；Outlook / 飞书 / ManageBac 同理）'),
           h('div', null, '· 服务器：地址:端口（如 play.example.com:25565），或 http(s):// 监控页'),
-          h('div', null, '· 邮箱：Gmail / QQ / 学校邮箱用 IMAP（密码或授权码）；Outlook / Hotmail / Live 必须用 Microsoft Graph，按下面的步骤操作'),
+          h('div', null, '· 网页 / YouTube / 哔哩哔哩：直接粘贴网址；普通网页会提取正文或列表条目，YouTube 支持频道 / 视频 / 播放列表，B 站支持 UP 主 / 视频 / 排行榜'),
+          h('div', null, '· 邮箱：Gmail / QQ / 学校邮箱用 IMAP（密码或授权码）；Outlook / Hotmail / Live 微软已停用密码登录，推荐按行内指南转发到 Gmail / QQ（不需要 Azure）'),
           h('div', null, '· ManageBac：粘贴学校 ManageBac 网页地址（.com / .cn），需要登录 Cookie 或 ICS 订阅链接'),
           h('div', null, '提示：webcal:// 开头的日历链接会自动按 https:// 处理。'),
         ),
@@ -1548,22 +1671,35 @@ window.__ModuleLoader__.load({
           h(Btn, { onClick: probe, disabled: Boolean(busy) || text.trim() === '' || locked }, busy === 'probe' ? '识别中…' : '识别'),
           h('div', { className: 'dbp-line-spacer' }),
           h(Btn, { onClick: onClose }, '关闭'),
-          rows.length > 0 ? h(Btn, { variant: 'primary', onClick: submit, disabled: Boolean(busy) || locked }, busy === 'add' ? '添加中…' : `加入 ${rows.filter((row) => row.checked).length} 个`) : null,
+          rows.length > 0 && addableCount > 0 ? h(Btn, { variant: 'primary', onClick: submit, disabled: Boolean(busy) || locked }, busy === 'add' ? '添加中…' : `加入 ${addableCount} 个`) : null,
         ),
         message ? h('div', { className: 'dbp-modal-ok' }, message) : null,
         errors.length > 0 ? h('div', { className: 'dbp-modal-err' }, errors.join('；')) : null,
         rows.map((row) => {
-          const proposal = row.proposal;
+          const proposal = row.proposal || {};
           const need = requiresOf(proposal);
           const microsoft = need.includes('microsoft');
-          const preview = proposal.preview || {};
+          const addable = proposal.addable !== false;
+          const steps = Array.isArray(proposal.steps) ? proposal.steps.map((step) => String(step)) : [];
+          const links = Array.isArray(proposal.links)
+            ? proposal.links.map((link) =>
+                link && typeof link === 'object'
+                  ? { url: String(link.url || ''), label: String(link.label || link.url || '') }
+                  : { url: String(link), label: String(link) },
+              )
+            : [];
+          const preview = proposal.preview && typeof proposal.preview === 'object' ? proposal.preview : {};
+          const noteText = [preview.subtitle, proposal.note].filter(Boolean).map((part) => String(part)).join(' · ');
           return h(
+            RowBoundary,
+            { key: row.key, label: row.label },
+            h(
             'div',
-            { className: 'dbp-proposal', key: row.key },
+            { className: 'dbp-proposal' },
             h('input', {
               type: 'checkbox',
-              checked: row.checked,
-              disabled: locked,
+              checked: row.checked && addable,
+              disabled: locked || !addable,
               onChange: (event) => patchRow(row.key, { checked: event.target.checked }),
             }),
             h(
@@ -1574,29 +1710,58 @@ window.__ModuleLoader__.load({
                 { className: 'dbp-proposal-head' },
                 h('input', {
                   className: 'dbp-input',
-                  value: row.label,
+                  value: String(row.label ?? ''),
                   spellCheck: false,
+                  disabled: !addable,
                   onChange: (event) => patchRow(row.key, { label: event.target.value }),
                 }),
-                h('span', { className: 'dbp-tag' }, TYPE_LABEL[proposal.type] || proposal.type),
-                h(
-                  'select',
-                  {
-                    className: 'dbp-select',
-                    value: row.section,
-                    onChange: (event) => patchRow(row.key, { section: event.target.value }),
-                  },
-                  SECTION_ORDER.map((id) => h('option', { key: id, value: id }, SECTION_LABEL[id] || id)),
-                ),
+                h('span', { className: 'dbp-tag' }, String(TYPE_LABEL[proposal.type] || proposal.type || '来源')),
+                addable
+                  ? h(
+                      'select',
+                      {
+                        className: 'dbp-select',
+                        value: row.section,
+                        onChange: (event) => patchRow(row.key, { section: event.target.value }),
+                      },
+                      SECTION_ORDER.map((id) => h('option', { key: id, value: id }, SECTION_LABEL[id] || id)),
+                    )
+                  : null,
               ),
-              !microsoft && (preview.subtitle || proposal.note)
-                ? h('div', { className: 'dbp-proposal-note' }, [preview.subtitle, proposal.note].filter(Boolean).join(' · '))
+              !microsoft && noteText
+                ? h('div', { className: 'dbp-proposal-note' }, noteText)
+                : null,
+              steps.length > 0
+                ? h(
+                    'div',
+                    { className: 'dbp-hint dbp-graph-help' },
+                    steps.map((step, index) => h('div', { key: index }, `${index + 1}. ${step}`)),
+                    links.length > 0
+                      ? h(
+                          'div',
+                          { style: { marginTop: '6px' } },
+                          links.map((link, index) =>
+                            h(
+                              'a',
+                              {
+                                key: `${link.url}-${index}`,
+                                href: link.url,
+                                target: '_blank',
+                                rel: 'noreferrer',
+                                style: { color: '#7db3ff', textDecoration: 'none', marginRight: '10px' },
+                              },
+                              link.label || link.url,
+                            ),
+                          ),
+                        )
+                      : null,
+                  )
                 : null,
               microsoft
                 ? h(
                     'div',
                     { className: 'dbp-hint dbp-graph-help' },
-                    h('div', null, '方法：Microsoft Graph 设备代码授权。微软已在 2024-09 停用 Outlook / Hotmail / Live 的 IMAP 密码登录，不能像 Gmail 那样填授权码。'),
+                    h('div', null, '这是 Microsoft Graph 的高级方式，只有 To Do 任务这类来源需要；普通 Outlook 邮箱请用上面的转发指南。微软已在 2024-09 停用 Outlook / Hotmail / Live 的 IMAP 密码登录。'),
                     h('div', null, '需要准备：① 这个 Microsoft 邮箱地址 ② Azure 应用（客户端）ID ③ 在 microsoft.com/devicelogin 输入一次设备代码。'),
                     h('div', null, '客户端 ID 怎么拿：portal.azure.com →「应用注册 / App registrations」→「新注册」→ 账户类型选「个人 Microsoft 账户」或「任何组织目录中的账户和个人 Microsoft 账户」→ 注册后到「身份验证 / Authentication」把「允许公共客户端流 / Allow public client flows」设为「是」→ 复制「应用程序(客户端) ID」。免费，不需要 Azure 订阅。'),
                     h('div', null, '接下来：把 ID 填到下面 → 勾选这一行 → 点「加入」→ 在弹出的窗口里按代码完成登录。'),
@@ -1657,7 +1822,8 @@ window.__ModuleLoader__.load({
                   )
                 : null,
             ),
-          );
+          ),
+        );
         }),
         connect
           ? h(GraphConnect, {
@@ -1827,8 +1993,34 @@ window.__ModuleLoader__.load({
       );
     }
 
+    const STATE_CACHE_KEY = 'daily-brief:panel-state:v1';
+    let cachedState = null;
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const raw = window.localStorage.getItem(STATE_CACHE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === 'object' && parsed.config) cachedState = parsed;
+        }
+      }
+    } catch {
+      cachedState = null;
+    }
+
+    function rememberState(next) {
+      cachedState = next;
+      try {
+        const raw = JSON.stringify(next);
+        // Keep the snapshot small enough for localStorage; the panel still gets
+        // fresh data from `/state` in the background when this is skipped.
+        if (raw.length < 3 * 1024 * 1024) window.localStorage.setItem(STATE_CACHE_KEY, raw);
+      } catch {
+        /* storage may be full or disabled — the in-memory cache still works */
+      }
+    }
+
     function App() {
-      const [state, setState] = useState(null);
+      const [state, setState] = useState(() => cachedState);
       const [error, setError] = useState('');
       const [busy, setBusy] = useState('');
       const [flash, setFlash] = useState(null);
@@ -1849,7 +2041,13 @@ window.__ModuleLoader__.load({
       const refresh = useCallback(async () => {
         try {
           const next = await api('/state');
-          setState(next);
+          rememberState(next);
+          setState((prev) => {
+            // Keep the same object when nothing changed so React can skip a
+            // full panel re-render on every 30-second poll.
+            if (prev && JSON.stringify(prev) === JSON.stringify(next)) return prev;
+            return next;
+          });
           setError('');
           return next;
         } catch (err) {
@@ -2106,7 +2304,13 @@ window.__ModuleLoader__.load({
       const briefings = Array.isArray(state.briefings) ? state.briefings : [];
       const schedule = config.schedule || {};
       const task = state.schedule && state.schedule.task ? state.schedule.task : null;
-      const sub = [schedule.enabled !== false ? `每天 ${schedule.time || '07:30'}` : '已暂停', config.timezone].filter(Boolean).join(' · ');
+      const times = scheduleTimes(schedule);
+      const sub = [
+        schedule.enabled !== false ? `每天 ${schedule.time || '07:30'} · ${times.prepareTime} 准备` : '已暂停',
+        config.timezone,
+      ]
+        .filter(Boolean)
+        .join(' · ');
 
       return h(
         'div',
@@ -2220,15 +2424,81 @@ window.__ModuleLoader__.load({
       );
     }
 
-    function Boundary(props) {
-      const [failure, setFailure] = useState(null);
-      useEffect(() => {
-        const onError = (event) => setFailure(event.error || new Error('unknown'));
-        window.addEventListener('error', onError);
-        return () => window.removeEventListener('error', onError);
-      }, []);
-      if (failure) return h('div', { className: 'dbp-error' }, `面板出错了：${failure.message || failure}`);
-      return props.children;
+    // A real error boundary: a single bad proposal (or any future render bug)
+    // must never take down the whole DSH main slot. The old version was a
+    // function component listening to window errors, which cannot catch React
+    // render errors — that is why one malformed row blanked the panel.
+    class Boundary extends React.Component {
+      constructor(props) {
+        super(props);
+        this.state = { failure: null };
+      }
+
+      static getDerivedStateFromError(error) {
+        return { failure: error };
+      }
+
+      componentDidCatch(error, info) {
+        try {
+          console.error('[daily-brief] panel render failed', error, info);
+        } catch {
+          /* ignore */
+        }
+      }
+
+      render() {
+        if (this.state.failure) {
+          return h(
+            'div',
+            { className: 'dbp-error' },
+            `面板渲染出错了：${this.state.failure.message || this.state.failure}`,
+            h(
+              'button',
+              {
+                type: 'button',
+                className: 'dbp-btn',
+                style: { marginLeft: '10px' },
+                onClick: () => this.setState({ failure: null }),
+              },
+              '重试',
+            ),
+          );
+        }
+        return this.props.children;
+      }
+    }
+
+    // Isolate one detected proposal: a malformed row must not take down the
+    // dialog (and definitely not the panel). This is the per-row safety net on
+    // top of the page-level boundary.
+    class RowBoundary extends React.Component {
+      constructor(props) {
+        super(props);
+        this.state = { failure: null };
+      }
+
+      static getDerivedStateFromError(error) {
+        return { failure: error };
+      }
+
+      componentDidCatch(error, info) {
+        try {
+          console.error('[daily-brief] proposal row failed', error, info);
+        } catch {
+          /* ignore */
+        }
+      }
+
+      render() {
+        if (this.state.failure) {
+          return h(
+            'div',
+            { className: 'dbp-proposal dbp-error' },
+            `这一行无法显示（${this.props.label || '来源'}）：${this.state.failure.message || this.state.failure}`,
+          );
+        }
+        return this.props.children;
+      }
     }
 
     return {

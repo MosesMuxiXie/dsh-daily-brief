@@ -1,19 +1,21 @@
 # 每日简报 · Daily Brief v2
 
-给 DeepSeek Harness（DSH）用的每日简报插件：每天定时把你**主动关注**的几件事——X 上的账号与订阅源、Steam 库里在玩的游戏、你自己的服务器或监控页——整理成一张窄卡片，并以桌面小窗口弹出，像记事本那样出现在屏幕角落，而不是发一条系统通知。
+给 DeepSeek Harness（DSH）用的每日简报插件：每天定时把你**主动关注**的几件事——X 上的账号、RSS/网页、YouTube 与哔哩哔哩更新、Steam 库里在玩的游戏、你自己的服务器或监控页——整理成一张窄卡片，并以桌面小窗口弹出，像记事本那样出现在屏幕角落，而不是发一条系统通知。
 
 它刻意做得「少而准」：默认没有任何信息流，也不替你猜兴趣。装好后由你贴 ID 决定看什么：X 账号 ID、Steam appid（或从本机库勾选）、自己的服务器与监控地址；一个都不填时，简报会提示去哪里添加。
 
 ## 特性
 
-- **最多 10 条**：新闻 4–5 条、游戏 2–3 条，学校通知/邮箱/飞书/日历等其他板块最多 4 个各保底 1 条；服务器状态单独一条底栏，不占新闻名额。
+- **不限条数**：当天抓到多少事件就显示多少条，不再有 10 条总预算或固定配额；新闻、游戏、学校通知、邮箱、日历、视频更新各自有多少列多少，服务器状态仍单独放底栏。
 - **只列你要的**：新闻只抓你粘贴的 X 账号 ID 和订阅源，游戏只抓你选的 Steam appid，没有 Hacker News、IGN 这类大范围聚合；不预置任何账号、订阅或游戏。
-- **要点式排版**：新闻与游戏各给 3–5 条 / 2–4 条短要点（谁做了什么/有什么变化），每条都带人设语气，不挂原始链接，扫一眼就够；没配新闻来源时退回把标题提炼成要点。
+- **要点式排版**：每条一个短要点（谁做了什么/有什么变化），带人设语气，不挂原始链接；要点条数跟当天条目走，不设上下限。没配新闻来源时退回把标题提炼成要点。
 - **内置四种人设 + 自定义卡片**：鲸鱼娘、助手、管家、军官；自定义卡片可保存多张（最多 12 张），每张有自己的名字、一句话、主色和语气。
 - **本地 Steam 库发现**：安装后自动读取本机 Steam 已安装列表，在面板里勾选即可，不用手抄 appid。
 - **服务器由你定义**：`地址:端口`、`minecraft://`、`http(s)://` 监控页都行；内网、IP、非标准端口同样支持。
 - **桌面弹窗**：独立 Edge/Chrome `--app` 窗口，无地址栏、无标签页，默认右下角 560×860。
 - **一页面板**：今天、简报风格、关注范围、来源、节奏、往期；改完即时保存，没有「保存」按钮。
+- **打开即显示**：面板先画出上一次的简报与配置快照，再在后台刷新；Windows 计划任务状态改为后台缓存，不再让首屏等 PowerShell 查询。
+- **壁纸透出**：检测到 DSH 壁纸引擎（`data-we-wallpaper` / 玻璃层）时，卡片自动变成半透明磨砂玻璃；普通主题仍是原来的深色纯色。
 - **不依赖 DSH 常开**：Windows 计划任务会在后台生成并弹出窗口。
 
 ## 环境要求
@@ -49,7 +51,7 @@
 
 - 条目按时间倒序，超出关注窗口的旧消息不会混进来。
 - RSS/Atom、JSON 订阅和网页抓取默认归入「新闻」板块；只有明显带游戏关键词的订阅才归入「游戏」。
-- 服务器与监控只占底栏，加多少个都不挤占 10 条新闻名额。
+- 服务器与监控只占底栏，加多少个都不挤占正文条目。
 
 ## 人设卡片
 
@@ -74,8 +76,10 @@
 | 粘贴的内容 | 识别结果 |
 | --- | --- |
 | `you@gmail.com`、`me@school.edu` | 邮箱（IMAP）。Gmail 用应用专用密码；学校邮箱识别不出服务器时会多出一个 IMAP 服务器输入框 |
-| `me@outlook.com`、`me@hotmail.com`、`me@live.com` | Microsoft 邮箱（Graph 授权）。不能填密码，需要自备 Azure 应用（客户端）ID，见下面「Microsoft 邮箱要填什么」 |
-| `https://…/feed.xml`、`.ics`、任意网页 | 订阅源 / 日历 / 网页抓取（可加关键词过滤） |
+| `me@outlook.com`、`me@hotmail.com`、`me@live.com` | 不再要求 Azure：给出一张「转发到 Gmail / QQ」的三步指南；按指南把 Outlook 邮件转发过去，再添加接收邮箱即可。Outlook 日历则直接粘贴发布的 ICS 链接 |
+| `https://youtube.com/@频道`、`https://youtu.be/视频ID`、播放列表 | YouTube 更新（频道 RSS / 视频页），不需要登录 |
+| `https://space.bilibili.com/UP主ID`、`https://bilibili.com/video/BV…`、排行榜 | 哔哩哔哩更新（UP 主投稿 / 单个视频 / 排行榜），公开接口，无需登录 |
+| `https://…/feed.xml`、`.ics`、任意网页 | 订阅源 / 日历 / 网页。普通网页会自动判断是「单篇文章」还是「列表页」：文章提取标题、正文摘要与发布时间；列表页提取最近条目，抓不到时提示设置 CSS 选择器 |
 | `https://www.managebac.com/...`、`https://…managebac.cn/...` | ManageBac 通知（.com / .cn 及学校子域；需要登录 Cookie，或日历订阅链接） |
 | `https://…feishu.cn/docx|wiki|calendar/...` | 飞书文档 / 知识库 / 日历；前端渲染抓不到时建议用 ICS 订阅 |
 | `http://status.example.com/` | 服务器监控来源 |
@@ -84,8 +88,8 @@
 
 - 密码、授权码、Cookie 保存在本机 DPAPI 加密的 secrets 文件里（`…\daily-brief\secrets\`），不写进 `config.json`。
 - 网页类来源会自动带上你填的 Cookie 再抓取。
-- 10 条预算：新闻 4–5 条、游戏 2–3 条；有内容的「其他板块」（学校通知、邮箱、飞书、日历等）最多 4 个各保底 1 条，剩余空位再回填给新闻和游戏，服务器状态不占名额。
-- 「来源」卡可以逐个测试、启停、删除；缺登录信息时该行会出现「未填 Cookie / 未填密码」和「补填」按钮，Microsoft 邮箱则显示「未连接 Microsoft」和「连接」按钮，就地处理即可，不用删除重加。
+- 不限条数：当天每个板块抓到多少就显示多少，不再按 10 条预算分配，也不再把新闻挤成 4–5 条；服务器状态单独在底栏，不占正文条目。
+- 「来源」卡可以逐个测试、启停、删除；缺登录信息时该行会出现「未填 Cookie / 未填密码」和「补填」按钮，高级 Graph 来源则显示「未连接 Microsoft」和「连接」按钮，就地处理即可，不用删除重加。
 - 删除来源会同时清掉该来源保存的密码/Cookie。
 
 ### ManageBac 要填什么
@@ -97,35 +101,32 @@
 
 Cookie 只保存在本机加密文件里；过期后重新补填一次即可。
 
-### Microsoft 邮箱（Outlook / Hotmail / Live）要填什么
+### Outlook / Hotmail / Live 怎么办（不需要 Azure）
 
-微软已在 2024-09-16 停用 Outlook.com / Hotmail / Live / MSN 的基本认证，`@outlook.com`、`@hotmail.com`、`@live.com`（含 `.cn`）不能再用「邮箱密码 / 授权码 + IMAP」登录。唯一可行的方法是 **Microsoft Graph 设备代码授权**：插件不会拿到你的密码，只保存一个只读令牌。
+微软已在 2024-09-16 停用 Outlook.com / Hotmail / Live / MSN 的基本认证，`@outlook.com`、`@hotmail.com`、`@live.com`（含 `.cn`）不能再用「邮箱密码 / 授权码 + IMAP」登录。也**不需要再注册 Azure 应用**：面板识别到 Outlook 地址时，会直接给出一张三步转发指南。两条零配置路线任选：
 
-要准备三样东西：
+**路线 A：把 Outlook 邮件转发到一个能收 IMAP 的邮箱（推荐）**
 
-1. **Microsoft 邮箱地址**：`me@outlook.com` 这类地址本身。
-2. **Azure 应用（客户端）ID**：相当于插件向微软出示的「身份证号」，注册一次即可给所有 Microsoft 邮箱共用：
-   - 打开 https://portal.azure.com →「应用注册 / App registrations」→「新注册 / New registration」；
-   - 名称随意（如 `DSH Daily Brief`）；
-   - 「受支持的账户类型 / Supported account types」选「个人 Microsoft 账户」或「任何组织目录中的账户和个人 Microsoft 账户」；
-   - 注册后进「身份验证 / Authentication」→ 把「允许公共客户端流 / Allow public client flows」设为「是」→「保存」；
-   - 回到「概述 / Overview」复制「应用程序(客户端) ID / Application (client) ID」。
-   - 免费，不需要 Azure 订阅；也不需要填重定向 URI。
-3. **一次设备代码登录**：插件会显示一个设备代码，你需要在 https://microsoft.com/devicelogin 输入它，再用该邮箱登录并同意只读权限。
+1. 打开 Outlook 网页版 →「设置 → 邮件 → 转发」，填一个 Gmail / QQ 邮箱，按提示完成验证；
+2. 在接收邮箱开启 IMAP：Gmail 生成「应用专用密码」，QQ 邮箱生成「授权码」；
+3. 回到「添加来源」，粘贴接收邮箱地址，填密码/授权码即可。
 
-面板里怎么操作：
+- 转发入口：https://outlook.live.com/mail/0/options/mail/forwarding
+- 转发会保留原邮件；建议在接收邮箱里加一条过滤规则，只保留真正想看的发件人，避免简报被邮件塞满。
+- Outlook 邮件本身只读不到也没关系：插件读的是转发后的接收邮箱，不接触你的 Outlook 密码。
 
-1. 在「添加来源」粘贴 Microsoft 邮箱地址 →「识别」；
-2. 这一行会给出「方法 / 需要准备 / 客户端 ID 怎么拿」的说明，把上一步复制的客户端 ID 填进去；
-3. 勾选这一行 →「加入」；
-4. 弹窗显示设备代码和「打开 microsoft.com/devicelogin」按钮：打开登录页 → 输入代码 → 用该邮箱登录 → 同意；
-5. 弹窗变成「已连接」即完成；「来源」卡不再显示「未连接 Microsoft」，点「测试」可立即拉取一次。
+**路线 B：只看 Outlook 日历**
+
+Outlook 日历 →「设置 → 共享日历 → 发布日历」→ 复制 ICS 链接 → 粘贴到「添加来源」。日历事件会直接进入简报的「日历」板块，不需要登录。
+
+**高级：Microsoft Graph 设备代码（可选）**
+
+只有 To Do 任务这类没有转发替代品的来源才需要 Graph：先注册一个 Azure 应用（客户端）ID，再在 `microsoft.com/devicelogin` 输入一次设备代码。普通 Outlook 邮件/日历不需要走这条路，README 也不再把它当作默认方案。
 
 补充：
 
-- 申请的权限是只读的 `User.Read`、`Mail.Read`、`Calendars.Read`、`Tasks.Read`；一次授权长期有效，令牌过期时点「连接」重新授权即可。
-- 令牌和密码一样保存在本机 DPAPI 加密的 `secrets` 文件里，删除来源会一并清除；换一个 Azure 应用（客户端 ID）后需要重新点「连接」。
-- 如果之前在旧版本里把 Microsoft 邮箱加成 IMAP 来源，删掉它，按上面的步骤重新添加；Microsoft 邮箱没有可用的 IMAP 密码方案。
+- 如果之前在旧版本里把 Outlook 邮箱加成 IMAP 或 Graph 来源，删掉它，按上面的转发路线重新添加即可。
+- 转发和日历发布都在微软自己的服务器上完成，插件只保存接收邮箱的密码或 ICS 链接，仍然放在本机 DPAPI 加密的 secrets 文件里。
 
 ## 桌面窗口
 
@@ -137,11 +138,14 @@ Cookie 只保存在本机加密文件里；过期后重新补填一次即可。
 
 ## 计划任务
 
-插件注册名为 **DSH Daily Brief** 的 Windows 计划任务：
+插件注册名为 **DSH Daily Brief** 的 Windows 计划任务，含两个每日触发器：
 
-- 以当前用户身份、无窗口运行 `lib/engine/runner.js`，不打开 DSH 窗口、不监听端口。
-- 生成 `…\daily-brief\briefings\<日期>\index.html`，随后弹出桌面窗口。
-- 错过时间会自动补跑；同一天只生成一次（「立即生成」可强制重跑，且不计入自动生成记录）。
+- **准备**：提前 `schedule.prepareLeadMin` 分钟（默认 10 分钟）静默收集并写入当天简报，不弹窗；
+- **发布**：到设定时间只做投递（弹窗/邮件/webhook），通常 1–2 秒完成，因此不会因为抓取慢而迟到；
+- 错过准备时会在发布阶段现场生成后投递；准备超过发布时间则在同一进程里直接发布；
+- 到了准备/发布时间电脑还在关机或睡眠时，下次开机/唤醒会补跑；当天错过的发布立即补发，跨天后不补旧闻，直接准备当天的一期；
+- 允许电池供电启动，不会因为拔掉电源而跳过；同一天只发布一次（「立即生成」可强制重跑，且不计入自动生成记录）；
+- 面板的「睡眠时唤醒」会打开计划任务的 WakeToRun，电脑合盖睡眠时也能在准备时间醒来。
 - 日志：`…\daily-brief\logs\runner.log`。
 
 ## AI 润色
@@ -165,14 +169,14 @@ Cookie 只保存在本机加密文件里；过期后重新补填一次即可。
 | 服务器一直离线 | 确认地址与端口、服务器是否开机；内网地址需允许私有网络（已默认允许） |
 | 桌面窗口没出现 | 检查是否安装 Edge/Chrome；查看 `logs\runner.log` 的投递记录 |
 | 飞书/ManageBac 抓不到条目 | 多为前端渲染或需要登录：改用日历 ICS 订阅，或在「添加来源」里填入 Cookie |
-| Outlook 邮箱填密码后报错 / 连不上 | Microsoft 已停用 IMAP 密码登录。改用 Microsoft Graph：按上面「Microsoft 邮箱要填什么」填入 Azure 应用（客户端）ID，再点「连接」完成一次授权 |
+| Outlook 邮箱填密码后报错 / 连不上 | Microsoft 已停用 IMAP 密码登录，但不再需要 Azure：按上面「Outlook 怎么办」把邮件转发到 Gmail / QQ，再添加接收邮箱；或直接用 Outlook 日历的 ICS 链接 |
 
 ## 配置参考（`config.json`）
 
-- `sources[]`：`type`（x/steam/minecraft/http/rss/atom/json/ics/page/imap/graph/managebac）、`section`、`label`、`enabled`、`options`。
-- `graph.clientId`：Microsoft Graph 的 Azure 应用（客户端）ID，所有 Microsoft 邮箱共用；面板里填写后会自动保存。
+- `sources[]`：`type`（x/steam/minecraft/http/rss/atom/json/ics/page/youtube/bilibili/imap/graph/browser/managebac）、`section`、`label`、`enabled`、`options`。
+- `graph.clientId`：仅 To Do 等高级 Microsoft Graph 来源需要的 Azure 应用（客户端）ID；普通 Outlook 邮件/日历不用填。
 - `persona`：`preset`（whale/assistant/butler/officer/custom 或自建卡片的 id）、`customName`、`customTagline`、`customAccent`、`customPrompt`，以及 `cards[]`（每张 `{ id, name, tagline, accent, prompt }`，最多 12 张）。
-- `schedule`：`time`（HH:MM）、`enabled`、`wakeToRun`。
+- `schedule`：`time`（HH:MM）、`enabled`、`wakeToRun`、`prepareLeadMin`（提前准备分钟数，默认 10）。
 - `delivery.popup`：`enabled`、`position`、`width`、`height`、`openOnGenerate`。
 - `ai.polish`：`auto` / `off`。
 
@@ -187,7 +191,7 @@ node lib/engine/runner.js --force             # 生成并投递（按配置弹�
 目录结构：
 
 - `lib/engine/`：配置、抓取、渲染、AI、弹窗、计划任务。
-- `lib/engine/collect/`：各类来源采集器（x、steam、minecraft、feed、http、imap…）。
+- `lib/engine/collect/`：各类来源采集器（x、steam、minecraft、feed、page、youtube、bilibili、http、imap…）。
 - `lib/host/`：面板 API、工具注册、计划任务桥接。
 - `client.js`：面板 UI（单页）。
 - `test/unit.test.mjs`：纯函数与渲染测试。

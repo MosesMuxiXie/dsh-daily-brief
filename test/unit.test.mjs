@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 
 import { parseFeedXml } from '../lib/engine/collect/feed.js';
 import { guessJsonMapping, getByPath } from '../lib/engine/collect/json.js';
@@ -8,6 +9,9 @@ import { renderBriefingHtml } from '../lib/engine/render/html.js';
 import { defaultConfig, mergeConfig, personaFor, SECTION_DEFS } from '../lib/engine/config.js';
 import { splitInputs, guessMailSettings, probeMany, normalizeCalendarLink, calendarLike } from '../lib/engine/import/detect.js';
 import { selectIcsEvents } from '../lib/engine/collect/ics.js';
+import { parseYouTubeUrl } from '../lib/engine/collect/youtube.js';
+import { parseBilibiliUrl } from '../lib/engine/collect/bilibili.js';
+import { extractArticle, pageKind } from '../lib/engine/collect/page.js';
 import { relativeTime } from '../lib/engine/text.js';
 
 test('parses RSS 2.0 and Atom without namespace assumptions', () => {
@@ -87,7 +91,11 @@ test('ai points extract short lines instead of links', () => {
 
   const polished = applyAiPolish(briefing, {
     points: {
-      aiNews: ['OpenAI 更新了智能体记忆机制，重点放在长期上下文', 'Anthropic 让 Claude 参与 MMORPG 实验'],
+      aiNews: [
+        'OpenAI 更新了智能体记忆机制，重点放在长期上下文',
+        'Anthropic 让 Claude 参与 MMORPG 实验',
+        'Google DeepMind 公布新的机器人学习成果',
+      ],
       gameNews: ['坦克世界闪击战上线花桥行动', 'K-70 活动持续到月底'],
     },
   });
@@ -95,10 +103,32 @@ test('ai points extract short lines instead of links', () => {
   assert.deepEqual(aiAfter.points, [
     'OpenAI 更新了智能体记忆机制，重点放在长期上下文',
     'Anthropic 让 Claude 参与 MMORPG 实验',
+    'Google DeepMind 公布新的机器人学习成果',
   ]);
   const html = renderBriefingHtml(polished);
   assert.match(html, /<ul class="points">/);
   assert.equal((html.match(/<a /g) || []).length, 0);
+});
+
+test('a short AI answer falls back to every collected item', () => {
+  const config = defaultConfig();
+  const items = [0, 1, 2].map((index) => ({
+    id: `item-${index}`,
+    title: `第 ${index} 条事件`,
+    url: `https://example.com/${index}`,
+    date: new Date(Date.UTC(2026, 10, 8, index)).toISOString(),
+  }));
+  const briefing = buildBriefing({
+    config,
+    dateKey: '2026-11-08',
+    results: [{ source: { id: 'feed', label: 'Feed', section: 'aiNews', enabled: true }, result: { status: 'ok', items, note: '' } }],
+  });
+  const polished = applyAiPolish(briefing, {
+    points: { aiNews: ['模型只写了两条要点', '第二条要点仍然很短'] },
+  });
+  const section = polished.sections.find((entry) => entry.id === 'aiNews');
+  assert.equal(section.points.length, 3);
+  for (const item of items) assert.ok(section.points.includes(item.title), item.title);
 });
 
 test('import helpers split lines and suggest IMAP settings', () => {
@@ -109,21 +139,20 @@ test('import helpers split lines and suggest IMAP settings', () => {
   assert.equal(mail.port, 993);
 });
 
-test('Microsoft mailboxes become one Graph source with method and needed info', async () => {
+test('Outlook mailboxes get a forwarding guide instead of an Azure requirement', async () => {
   for (const address of ['me@outlook.com', 'me@hotmail.com', 'me@live.cn', 'me@msn.com']) {
     const { results, errors } = await probeMany(address);
     assert.deepEqual(errors, [], address);
     assert.equal(results.length, 1, address);
     const [proposal] = results;
-    assert.equal(proposal.type, 'graph', address);
+    assert.equal(proposal.type, 'guide', address);
     assert.equal(proposal.section, 'mail', address);
-    assert.deepEqual(proposal.requires, ['microsoft'], address);
-    assert.equal(proposal.account.user, address);
-    assert.match(proposal.note, /Microsoft Graph/);
-    assert.match(proposal.note, /方法/);
-    assert.match(proposal.note, /需要/);
-    assert.match(proposal.note, /客户端/);
-    assert.match(proposal.note, /devicelogin/);
+    assert.equal(proposal.addable, false, address);
+    assert.deepEqual(proposal.requires, [], address);
+    assert.equal(proposal.steps.length, 3, address);
+    assert.match(proposal.note, /转发/);
+    assert.match(proposal.note, /Gmail|QQ/);
+    assert.equal(proposal.links[0].url, 'https://outlook.live.com/mail/0/options/mail/forwarding');
   }
   const gmail = await probeMany('you@gmail.com');
   assert.deepEqual(gmail.errors, []);
@@ -132,7 +161,7 @@ test('Microsoft mailboxes become one Graph source with method and needed info', 
   assert.equal(gmail.results[0].account.host, 'imap.gmail.com');
 });
 
-test('briefing fills up to ten news rows with the 4/3 news-game split', () => {
+test('briefing keeps every collected item instead of capping at ten', () => {
   const config = defaultConfig();
   const makeItems = (prefix, count) =>
     Array.from({ length: count }, (_, index) => ({
@@ -146,8 +175,8 @@ test('briefing fills up to ten news rows with the 4/3 news-game split', () => {
       tone: '',
     }));
   const results = [
-    { source: { id: 'x-openai', label: 'OpenAI', section: 'aiNews', enabled: true }, result: { status: 'ok', items: makeItems('ai', 6), note: '' } },
-    { source: { id: 'steam-1', label: 'Game', section: 'gameNews', enabled: true }, result: { status: 'ok', items: makeItems('game', 4), note: '' } },
+    { source: { id: 'x-openai', label: 'OpenAI', section: 'aiNews', enabled: true }, result: { status: 'ok', items: makeItems('ai', 12), note: '' } },
+    { source: { id: 'steam-1', label: 'Game', section: 'gameNews', enabled: true }, result: { status: 'ok', items: makeItems('game', 8), note: '' } },
     {
       source: { id: 'mc-main', label: 'MC', section: 'server', enabled: true },
       result: {
@@ -159,14 +188,15 @@ test('briefing fills up to ten news rows with the 4/3 news-game split', () => {
     },
   ];
   const briefing = buildBriefing({ config, results, dateKey: '2026-11-08' });
-  assert.equal(briefing.stats.items, 10);
-  assert.equal(briefing.sections.find((section) => section.id === 'aiNews').items.length, 6);
-  assert.equal(briefing.sections.find((section) => section.id === 'gameNews').items.length, 4);
+  assert.equal(briefing.stats.items, 20);
+  assert.equal(briefing.sections.find((section) => section.id === 'aiNews').items.length, 12);
+  assert.equal(briefing.sections.find((section) => section.id === 'gameNews').items.length, 8);
   assert.equal(briefing.sections.find((section) => section.id === 'server').server.online, true);
-  assert.match(briefing.headline, /新闻|游戏/);
+  assert.match(briefing.headline, /12 条新闻/);
+  assert.match(briefing.headline, /8 条游戏/);
 });
 
-test('school notices keep a seat even when news and games are busy', () => {
+test('school notices are shown in full without taking a seat budget', () => {
   const config = defaultConfig();
   const makeItems = (prefix, count) =>
     Array.from({ length: count }, (_, index) => ({
@@ -186,10 +216,11 @@ test('school notices keep a seat even when news and games are busy', () => {
     { source: { id: 'imap-1', label: '邮箱', section: 'mail', enabled: true }, result: { status: 'ok', items: makeItems('mail', 2), note: '' } },
   ];
   const briefing = buildBriefing({ config, results, dateKey: '2026-11-08' });
-  assert.equal(briefing.stats.items, 10);
+  assert.equal(briefing.stats.items, 14);
   const school = briefing.sections.find((section) => section.id === 'managebac');
-  assert.ok(school && school.items.length >= 1, 'school notices should be summarized');
-  assert.ok(briefing.sections.find((section) => section.id === 'aiNews').items.length <= 5);
+  assert.equal(school.items.length, 2, 'every school notice should be shown');
+  assert.equal(briefing.sections.find((section) => section.id === 'aiNews').items.length, 6);
+  assert.equal(briefing.sections.find((section) => section.id === 'mail').items.length, 2);
   assert.match(briefing.headline, /其他更新/);
 });
 
@@ -454,4 +485,160 @@ test('calendar events weeks ahead still make it into the brief', () => {
   assert.deepEqual(near.map((item) => item.title), ['家长会', '月度活动']);
   const wide = selectIcsEvents(parsed, { now, daysAhead: 120, timezone: 'Asia/Shanghai' });
   assert.deepEqual(wide.map((item) => item.title), ['家长会', '月度活动', '远期考试']);
+});
+
+test('YouTube links resolve to channel, video and playlist sources', () => {
+  assert.deepEqual(parseYouTubeUrl('https://www.youtube.com/@mkbhd'), { mode: 'channel', handle: 'mkbhd' });
+  assert.deepEqual(parseYouTubeUrl('https://youtube.com/channel/UCBcRF18a7Qf58cCRy5xuWwQ'), {
+    mode: 'channel',
+    channelId: 'UCBcRF18a7Qf58cCRy5xuWwQ',
+  });
+  assert.deepEqual(parseYouTubeUrl('https://youtu.be/dQw4w9WgXcQ'), {
+    mode: 'video',
+    videoId: 'dQw4w9WgXcQ',
+    url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+  });
+  assert.deepEqual(parseYouTubeUrl('https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=10'), {
+    mode: 'video',
+    videoId: 'dQw4w9WgXcQ',
+    url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+  });
+  assert.deepEqual(parseYouTubeUrl('https://www.youtube.com/playlist?list=PL123'), {
+    mode: 'playlist',
+    playlistId: 'PL123',
+  });
+  assert.equal(parseYouTubeUrl('https://example.com/watch?v=1'), null);
+});
+
+test('Bilibili links resolve to space, video, ranking and short sources', () => {
+  assert.deepEqual(parseBilibiliUrl('https://space.bilibili.com/2'), { mode: 'space', mid: '2' });
+  assert.deepEqual(parseBilibiliUrl('https://www.bilibili.com/video/BV1GJ411x7h7'), {
+    mode: 'video',
+    bvid: 'BV1GJ411x7h7',
+  });
+  assert.deepEqual(parseBilibiliUrl('https://www.bilibili.com/video/av170001'), { mode: 'video', aid: '170001' });
+  assert.deepEqual(parseBilibiliUrl('https://www.bilibili.com/v/popular/rank/all'), { mode: 'ranking' });
+  assert.deepEqual(parseBilibiliUrl('https://b23.tv/abc123'), { mode: 'short', shortUrl: 'https://b23.tv/abc123' });
+  assert.equal(parseBilibiliUrl('https://example.com/video/BV1GJ411x7h7'), null);
+});
+
+test('ordinary article pages expose title, body and publish time', () => {
+  const html = `<!doctype html><html><head>
+    <meta property="og:type" content="article">
+    <meta property="og:title" content="A long article title">
+    <meta property="og:description" content="A useful summary of what changed today.">
+    <meta property="article:published_time" content="2026-11-08T08:00:00Z">
+    <link rel="canonical" href="https://example.com/posts/1">
+  </head><body><article><h1>A long article title</h1><p>Body paragraph.</p></article></body></html>`;
+  assert.equal(pageKind(html), 'article');
+  const item = extractArticle(html, 'https://example.com/posts/1');
+  assert.equal(item.title, 'A long article title');
+  assert.equal(item.url, 'https://example.com/posts/1');
+  assert.match(item.detail, /useful summary/);
+  assert.equal(item.date, '2026-11-08T08:00:00.000Z');
+  assert.equal(pageKind('<html><body><ul><li><a href="/a">link one</a></li></ul></body></html>'), 'list');
+});
+
+test('scheme-less web addresses are probed as pages', async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    assert.match(String(url), /^https:\/\/sspai\.com\//);
+    return new Response(
+      `<html><head><title>sspai</title>
+       <meta property="og:type" content="article">
+       <meta property="og:title" content="A pasted page title that is long enough">
+       <meta property="article:published_time" content="2026-11-08T00:00:00Z">
+       </head><body><article><p>Hello world.</p></article></body></html>`,
+      { status: 200, headers: { 'content-type': 'text/html' } },
+    );
+  };
+  try {
+    const { results, errors } = await probeMany('sspai.com/', {});
+    assert.deepEqual(errors, []);
+    assert.equal(results.length, 1);
+    assert.equal(results[0].type, 'page');
+    assert.equal(results[0].url, 'https://sspai.com/');
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test('Outlook calendar URLs become a publish-guide instead of a Graph source', async () => {
+  const { results, errors } = await probeMany('https://outlook.live.com/calendar/0/view/month');
+  assert.deepEqual(errors, []);
+  assert.equal(results.length, 1);
+  assert.equal(results[0].type, 'guide');
+  assert.equal(results[0].section, 'calendar');
+  assert.equal(results[0].addable, false);
+  assert.match(results[0].note, /日历|ICS/);
+  assert.equal(results[0].links[0].url, 'https://outlook.live.com/calendar/0/options/calendar/publishing');
+});
+
+test('AI polish keeps every point instead of trimming to six', () => {
+  const config = defaultConfig();
+  const briefing = buildBriefing({
+    config,
+    results: [
+      {
+        source: { id: 'x-openai', label: 'OpenAI', section: 'aiNews', enabled: true },
+        result: {
+          status: 'ok',
+          items: Array.from({ length: 10 }, (_, index) => ({
+            id: `ai-${index}`,
+            title: `OpenAI 更新 ${index}`,
+            detail: '',
+            url: `https://example.com/ai/${index}`,
+            date: new Date(Date.UTC(2026, 10, 8, index)).toISOString(),
+            meta: '',
+            badge: '',
+            tone: '',
+          })),
+          note: '',
+        },
+      },
+    ],
+    dateKey: '2026-11-08',
+  });
+  const points = Array.from({ length: 10 }, (_, index) => `第 ${index} 条要点`);
+  const polished = applyAiPolish(briefing, { headline: '', intro: '', points: { aiNews: points } });
+  const ai = polished.sections.find((section) => section.id === 'aiNews');
+  assert.equal(ai.points.length, 10);
+});
+
+test('the panel catches render errors and never passes string style props', () => {
+  const source = readFileSync(new URL('../client.js', import.meta.url), 'utf8');
+  // React error #62 (style must be an object) crashed the whole panel once.
+  assert.doesNotMatch(source, /\bstyle\s*:\s*['"]/);
+  // A function component cannot catch render errors; the panel needs a real boundary.
+  assert.match(source, /class Boundary extends React\.Component/);
+  assert.match(source, /class RowBoundary extends React\.Component/);
+  assert.match(source, /static getDerivedStateFromError/);
+  assert.match(source, /componentDidCatch/);
+});
+
+test('the panel paints the last snapshot before the host answers', () => {
+  const source = readFileSync(new URL('../client.js', import.meta.url), 'utf8');
+  // A cold panel used to sit on the skeleton until /state finished; even after
+  // the host got faster, a cached first paint keeps reopening instant.
+  assert.match(source, /daily-brief:panel-state:v1/);
+  assert.match(source, /useState\(\(\) => cachedState\)/);
+  assert.match(source, /rememberState\(next\)/);
+});
+
+test('the panel only turns translucent while a wallpaper or glass layer is active', () => {
+  const source = readFileSync(new URL('../client.js', import.meta.url), 'utf8');
+  assert.match(source, /body:is\(\[data-we-wallpaper\],\[data-we-glass-page\]\) \.dbp-root \{ background:transparent; \}/);
+  assert.match(source, /backdrop-filter:blur\(var\(--we-blur,18px\)\)/);
+  assert.match(source, /@media \(prefers-reduced-transparency: reduce\)/);
+});
+
+test('opening the panel never waits for the PowerShell task probe', () => {
+  const source = readFileSync(new URL('../lib/host/service.js', import.meta.url), 'utf8');
+  // getState() used to await Get-ScheduledTask, which cost ~7 s on every open.
+  assert.match(source, /const task = peekTask\(\)/);
+  assert.match(source, /if \(!task\) queryTask\(\)\.catch/);
+  // Secret presence checks are synchronous now; an async helper would put a
+  // Promise into the JSON reply and hide every "saved" badge.
+  assert.match(source, /secrets: secretStatus\(config\)/);
+  assert.doesNotMatch(source, /async function secretStatus/);
 });
