@@ -27,9 +27,10 @@
 ## 环境要求
 
 - Windows 10/11（弹窗与计划任务依赖 Windows；其他平台只能生成 HTML）。
+- DeepSeek Harness 核心 **≥ 0.2.1-rc.3**（已声明 `engines.dsh`，在 0.2.2-rc.1 上验证）。
 - 已安装 DeepSeek Harness，并能用 `plugin_manager` 安装本地插件目录。
 - 本机有 Microsoft Edge 或 Google Chrome（用于独立窗口）。
-- Node.js 随 DSH 提供；若要跑测试，需要 Node 18+。
+- Node.js 20+（随 DSH 提供；跑测试也用它）。
 
 ## 安装
 
@@ -176,6 +177,7 @@ Outlook 日历 →「设置 → 共享日历 → 发布日历」→ 复制 ICS �
 | 桌面窗口没出现 | 检查是否安装 Edge/Chrome；查看 `logs\runner.log` 的投递记录 |
 | 飞书/ManageBac 抓不到条目 | 多为前端渲染或需要登录：改用日历 ICS 订阅，或在「添加来源」里填入 Cookie |
 | Outlook 邮箱填密码后报错 / 连不上 | Microsoft 已停用 IMAP 密码登录，但不再需要 Azure：按上面「Outlook 怎么办」把邮件转发到 Gmail / QQ，再添加接收邮箱；或直接用 Outlook 日历的 ICS 链接 |
+| 插件市场里安装失败，任务日志是 `pnpm` 且提到 `@napi-rs/canvas-*` / `@img/sharp-*` 或 `EPERM`/`EBUSY` | 失败发生在市场对整个 DSH profile 做 pnpm 重解析时（删宿主自带的原生可选包，被运行中的 DSH 占用），与插件包无关。完全退出 DSH（含托盘）后重装；仍失败就在终端执行 `dsh plugin add dsh-daily-brief` 取真正的错误行 |
 
 ## 配置参考（`config.json`）
 
