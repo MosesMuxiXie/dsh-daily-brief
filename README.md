@@ -84,8 +84,8 @@
 | --- | --- |
 | `you@gmail.com`、`me@school.edu` | 邮箱（IMAP）。Gmail 用应用专用密码；学校邮箱识别不出服务器时会多出一个 IMAP 服务器输入框 |
 | `me@outlook.com`、`me@hotmail.com`、`me@live.com` | 不再要求 Azure：给出一张「转发到 Gmail / QQ」的三步指南；按指南把 Outlook 邮件转发过去，再添加接收邮箱即可。Outlook 日历则直接粘贴发布的 ICS 链接 |
-| `https://youtube.com/@频道`、`https://youtu.be/视频ID`、播放列表 | YouTube 更新（频道 RSS / 视频页），不需要登录 |
-| `https://space.bilibili.com/UP主ID`、`https://bilibili.com/video/BV…`、排行榜 | 哔哩哔哩更新（UP 主投稿 / 单个视频 / 排行榜），公开接口，无需登录 |
+| `https://youtube.com/@频道`、`https://youtu.be/视频ID`、播放列表 | YouTube 更新（频道 RSS / 视频页），不需要登录；同时读取每个视频的评论数，评论最多的那条会单独生成「今日热议」卡 |
+| `https://space.bilibili.com/UP主ID`、`https://bilibili.com/video/BV…`、排行榜 | 哔哩哔哩更新（UP 主投稿 / 单个视频 / 排行榜），公开接口，无需登录；同样读每条视频的评论数，评论最多的那条生成「今日热议」卡 |
 | `https://…/feed.xml`、`.ics`、任意网页 | 订阅源 / 日历 / 网页。普通网页会自动判断是「单篇文章」还是「列表页」：文章提取标题、正文摘要与发布时间；列表页提取最近条目，抓不到时提示设置 CSS 选择器 |
 | `https://www.managebac.com/...`、`https://…managebac.cn/...` | ManageBac 通知（.com / .cn 及学校子域；需要登录 Cookie，或日历订阅链接） |
 | `https://…feishu.cn/docx|wiki|calendar/...` | 飞书文档 / 知识库 / 日历；前端渲染抓不到时建议用 ICS 订阅 |
@@ -159,6 +159,12 @@ Outlook 日历 →「设置 → 共享日历 → 发布日历」→ 复制 ICS �
 
 - 默认「自动」：仅当本机 DSH 有可用登录时，用 headless 方式让模型写标题、一句引言和两段要点；失败自动回退本地文案。
 - 只改文案，不改抓取结果、不增删条目；提示词里明确禁止编造与出现网址。
+- 提示词里会带上视频的评论数与「今日热议」的三条热评，因此要点能写出「46 条评论都在吐槽片头」这类内容；评论数只由接口给出，模型不得自行推测。
+- 以下任一条件不满足就会跳过，并在简报顶部写明原因（`logs\runner.log` 里是同一句）：
+  1. `%(LOCALAPPDATA)%\Programs\DSH NEXT\DSH NEXT.exe` 存在，且 `resources\app.asar` 或解包后的 `resources\app` 里有 `lib\desktop-cli.js`；
+  2. headless profile 已登录（`…\daily-brief\headless-auth.yml`，跟随你桌面端当前账号）；
+  3. 模型在 `ai.timeoutSec`（默认 120 秒）内返回可解析的 JSON。
+- 关掉：`ai.polish` 设为 `off`，或面板里选择「不润色」。
 
 ## 数据与隐私
 
@@ -172,6 +178,9 @@ Outlook 日历 →「设置 → 共享日历 → 发布日历」→ 复制 ICS �
 | --- | --- |
 | 面板提示「重启一次 DSH」 | 插件主进程仍是旧代码：完全退出并重开 DSH，面板会恢复可编辑 |
 | X 新闻经常很少 | syndication 对同一出口 IP 限流很紧（约每 15 分钟 1 次），插件会自动用官方博客补位；可减少账号数量，或改用 RSS 订阅 |
+| 简报有条目，但没有标题和要点 | AI 润色被跳过，简报顶部会写「AI 润色未生效：原因」。常见原因：headless 未登录、DSH 升级后目录结构变化（v2.1 起 `app.asar` 与解包后的 `app\` 都认）、模型超过 `ai.timeoutSec`、或 `ai.polish` 被设成 `off` |
+| 某个来源长期「获取超时（35 秒）」 | 慢来源（X / YouTube / B 站 / Steam / 浏览器 / IMAP / Graph）每个 35 秒、普通来源 22 秒，超时即记 error 且当天 0 条。X 最容易吃满：syndication 限流按出口 IP 共享，账号多了第一轮就耗尽，之后还要等官方博客兜底 |
+| B 站报 -352 / -412 | UP 主空间接口对冷请求很敏感。现在会自动改走「动态」接口（另一套风控，通常还能读到投稿）；两条都被挡住时说明本机 IP 被临时限制，等 5–30 分钟再试，或改用单条视频 / 排行榜（这两个接口更宽松）。整轮里命中 -412 后评论数请求会直接短路，避免把封禁时间越拖越长 |
 | Steam 显示「暂时连不上」 | 官方新闻接口偶发超时，会自动显示上次结果；稍后重跑即可 |
 | 服务器一直离线 | 确认地址与端口、服务器是否开机；内网地址需允许私有网络（已默认允许） |
 | 桌面窗口没出现 | 检查是否安装 Edge/Chrome；查看 `logs\runner.log` 的投递记录 |
@@ -182,6 +191,8 @@ Outlook 日历 →「设置 → 共享日历 → 发布日历」→ 复制 ICS �
 ## 配置参考（`config.json`）
 
 - `sources[]`：`type`（x/steam/minecraft/http/rss/atom/json/ics/page/youtube/bilibili/imap/graph/browser/managebac）、`section`、`label`、`enabled`、`options`。
+- YouTube 的 `options`：`limit`、`sinceHours`、`commentScan`（默认 6，最多 10，看前几条视频的评论数；`comments:false` 可整体关掉评论读取）、`commentsPerVideo`（默认 4，热议卡里带几条热评）。
+- Bilibili 的 `options`：`limit`、`sinceHours`、`mid` / `bvid`（覆盖链接里的 ID）、`commentScan`、`commentsPerVideo`、`comments:false`，含义同上。
 - `graph.clientId`：仅 To Do 等高级 Microsoft Graph 来源需要的 Azure 应用（客户端）ID；普通 Outlook 邮件/日历不用填。
 - `persona`：`preset`（whale/assistant/butler/officer/custom 或自建卡片的 id）、`customName`、`customTagline`、`customAccent`、`customPrompt`，以及 `cards[]`（每张 `{ id, name, tagline, accent, prompt }`，最多 12 张）。
 - `schedule`：`time`（HH:MM）、`enabled`、`wakeToRun`、`prepareLeadMin`（提前准备分钟数，默认 10）。
